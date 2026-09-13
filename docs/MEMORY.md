@@ -105,3 +105,31 @@ before relying on **Use this template**, and separately decide whether to apply
 the portable Main ruleset to App-Factory itself. Generated repositories must
 still receive their own live governance because GitHub administrative settings
 are not inherited.
+
+## 2026-09-13 — Greenfield4 deliberately entered product discovery
+
+**Context:** Issue #4, branch `discovery/repurpose-greenfield4`.
+**Did:** The product owner explicitly chose to repurpose Greenfield4 itself as
+the product repository rather than creating a separate application repository.
+Recorded that exception in ADR-0001, moved `PROJECT_PHASE` to `discovery` while
+leaving `ALLOW_APP_STACK=0` and `STACK_DECISION_ADR` empty, migrated the
+completed product-owner discovery decisions into `docs/PRODUCT.md`, and added
+established domain vocabulary to `docs/DOMAIN.md`. The final product name and
+slug remain intentionally unset.
+**Verified:** Repository/file state was read through the GitHub connector before
+the change. Local `bash scripts/verify.sh` and `bash scripts/selftest.sh` were
+**not run** because the execution environment could not resolve `github.com`
+when cloning the branch (`Could not resolve host: github.com`). GitHub Actions
+on the final PR head is therefore the executable verification witness for this
+change and must be checked before merge.
+**Learned:** The earlier direct factory-to-discovery attempt was mechanically
+valid but process-incomplete because it silently contradicted the default
+fresh-repository path in `docs/FACTORY.md`. The correct way to use Greenfield4
+itself is to make the exception explicit, approved, and durable rather than to
+pretend the default path does not exist. Uploaded remote-control research packs
+remain evidence only. The Rust-core/switchable-UI idea remains an architecture
+preference, not an accepted stack decision.
+**Next:** Review and merge Issue #4's PR only after both required CI jobs pass.
+Then continue product discovery from `docs/PRODUCT.md`: finish naming, select
+the first two smart-TV ecosystems using the recorded evidence bar, and do not
+move to architecture until the product definition is reviewed.
