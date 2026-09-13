@@ -1,54 +1,169 @@
 # Product
 
-**Status: intentionally undefined.**
+**Status: discovery in progress.**
 
-This repository was created from App-Factory, a generic engineering foundation.
-No product definition exists yet, and this file deliberately contains no
-requirements, personas, features, pricing, or positioning.
+This repository is the product repository for a phone-first universal TV remote. The final product name is intentionally undecided. This definition records product-owner decisions made in discovery; it does not select an application stack or authorize implementation.
 
-## Why this file exists
+## Problem and user
 
-So that the absence of a product definition is explicit rather than ambiguous.
-An agent that finds this file knows that inventing product requirements would
-be a violation, not a contribution. Silence is not permission.
+The first user is an ordinary person whose physical TV remote is lost, broken, has dead batteries, is inconvenient, or is simply worse than using the phone already in their hand.
 
-## Questions the product owner must answer first
+The product should let that person find a supported TV, connect, and gain useful control very quickly without needing to understand networking, protocols, IP addresses, pairing credentials, or transport details.
 
-Answer these in a GitHub issue, then land the result here in a reviewed PR.
+The baseline to beat is the physical remote: it is immediate, familiar, dependable, and requires almost no thought.
 
-| Question | Why it blocks everything else |
-| :-- | :-- |
-| What problem is being solved, for whom? | Without it, scope is unbounded. |
-| Who is the user, and what do they do today instead? | Defines the baseline to beat. |
-| What is explicitly out of scope? | Non-goals prevent drift more than goals do. |
-| What does the first usable version do? | Sets the smallest shippable slice. |
-| How is success observed? | Determines what has to be measurable. |
-| What data does the product touch? | Drives the security and privacy posture. |
-| What constraints are fixed (regulatory, budget, deadline, platform)? | Cannot be discovered later cheaply. |
+## Product promise
 
-## What must happen before this file gains content
+The product is a **phone-first universal TV remote**, designed so other living-room devices can be added later without changing the simple user-facing promise.
 
-1. A product owner writes the definition — problem, users, scope, non-goals.
-2. The definition lands in a reviewed PR against this file.
-3. Any technical consequence (framework, database, hosting, auth) is recorded
-   as an ADR in [decisions/](decisions/README.md), not implied by code.
-4. Only then may the repository move to the `architecture` and
-   `implementation` lifecycle phases in
-   [`../config/project.env`](../config/project.env).
+“Universal” means one app can honestly support multiple TV technologies behind one consistent experience, with a clear compatibility list. It does **not** mean claiming every television works.
 
-## Guardrails in force until then
+Reliability and premium visual quality are joint priorities. Broad device-count claims never justify unreliable control.
 
-- No application source code, framework, database, auth scheme, hosting
-  target, or UI may be introduced. The guard is
-  `scripts/verify.sh` (check `no_app_stack`), driven by `ALLOW_APP_STACK` in
-  [`../config/project.env`](../config/project.env).
-- Engineering work proceeds on the foundation itself: rules, workflows,
-  verification, memory, and decisions.
+## Fixed V1 constraints
 
-## Related
+- Android first, while preserving a credible later iPhone path.
+- Core remote control is local-first and must not require our cloud or an internet connection.
+- No user account is required for core use.
+- V1 targets two major smart-TV ecosystems, selected by evidence rather than by the uploaded research packs alone.
+- Built-in phone IR is a V1 capability when the Android device exposes suitable hardware.
+- One visible remote may transparently use more than one control transport, for example network control for rich commands and IR for power.
+- Product name and repository slug remain open during discovery.
+- The product owner prefers a Rust core with a switchable UI layer, but that is an **architecture preference only** and is not accepted in discovery.
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — the engineering system that exists today
-- [DOMAIN.md](DOMAIN.md) — domain vocabulary (also undefined)
-- [ROADMAP.md](ROADMAP.md) — lifecycle sequencing
-- [FACTORY.md](FACTORY.md) — how this repository was instantiated
-- [decisions/](decisions/README.md) — decision record index
+## First-run journey
+
+1. Show a short welcome/explanation, then begin automatic discovery.
+2. Before Android permission prompts, explain in ordinary language why local-network/device access is needed.
+3. Show friendly device cards using trustworthy discovered information; keep protocol/IP details elsewhere.
+4. When practical, show unsupported discovered TVs as “found but not supported yet” rather than pretending nothing was found.
+5. If a TV requires a pairing code, simply ask the user to enter the code shown on the TV.
+6. Pair once, store the resulting credentials securely, and reconnect automatically later.
+7. If the TV’s IP changes, rediscover the remembered TV without exposing IP-address management to the user.
+8. If automatic discovery fails, explain likely causes first and offer a manual fallback where the TV technology supports one.
+9. Prefer smart/network control; use built-in IR when it helps or when network control cannot solve a required function.
+10. After successful setup, immediately show the capability-driven remote.
+
+The hard setup target for a supported device is **install/open → find → pair → working control in under two minutes**. Faster is better where the TV permits it.
+
+## Device and household behavior
+
+- Remember multiple TVs.
+- Let users give friendly names such as Lounge or Bedroom.
+- Reopen the last-used TV by default.
+- On later launches, reopen the last remote and reconnect quietly in the background.
+- Additional household phones pair independently in V1; pairing secrets are not shared through an account or cloud service.
+- After a router/Wi-Fi change, rediscover remembered devices and repair the connection with as little user involvement as the device permits.
+- If phone and TV are on different local networks, explain that clearly rather than hiding the limitation behind a cloud relay.
+
+## Capability-driven remote
+
+The connected device is the truth. The product should discover what that actual device can do and present useful controls from real capabilities rather than hardcoding one generic button set.
+
+- Familiar enough to understand immediately, but designed for a phone rather than visually copying a plastic remote.
+- Support directional-button navigation and touchpad/swipe navigation when the TV supports them; let the user choose.
+- Use subtle haptic feedback on remote presses by default, with an option to disable it.
+- While the remote is active, Android physical volume buttons control TV volume by default, with an option to disable that behavior.
+- If the TV supports text input, use the normal Android keyboard.
+- If installed apps are discoverable and launchable, show the actual supported apps rather than hardcoded app buttons.
+- Keep everyday controls on the main remote and less-used supported controls under “More”.
+- Allow simple rearranging/favourites in V1; a full custom remote designer is not V1.
+- Keep core controls stable while allowing relevant extra controls to surface contextually.
+- Make one-handed use a first-class requirement.
+- Accessibility is first-class: screen-reader support, scalable text, strong contrast, large touch targets, and clear labels.
+- Show simple states such as Connected, Reconnecting, or TV offline; keep technical connection details away from the main remote.
+- If a capability becomes unavailable, reflect that honestly rather than leaving a dead control.
+- V1 visual quality should feel premium; decorative animation must not reduce reliability or delay critical behavior.
+
+## Power, failure, and recovery
+
+- For a sleeping/off TV, try safe supported wake methods automatically: network wake first, then built-in IR when available and appropriate.
+- If the hardware cannot be powered on remotely, explain the limitation clearly rather than promising impossible behavior.
+- Connection drops trigger quiet reconnection with a small Reconnecting state, not repeated error dialogs.
+- Model/firmware assumptions never override what the actual device proves it can do.
+- Unsupported TVs may offer a manual “Request support” action where the user explicitly chooses what device information to send.
+- IR setup uses likely code profiles and asks the user to verify simple commands; do not blindly transmit every known code.
+- If multiple IR profiles partly work, verify important commands and select the profile with the best demonstrated coverage.
+
+## Security and privacy product requirements
+
+Security wins over popularity or feature coverage.
+
+- Pairing credentials, tokens, and keys are treated like passwords: protect them on-device and exclude them from logs/analytics.
+- If a paired device’s security identity changes unexpectedly, fail safely and require re-pairing rather than silently trusting the new identity.
+- If a secure connection cannot be established, refuse the unsafe connection. There is no global “ignore security” mode.
+- Core product data stays local by default and collection is minimized.
+- V1 has **no behavioral usage analytics**.
+- Anonymous crash/error reporting is acceptable only when remote commands, pairing secrets, Wi-Fi names, IP addresses, and identifiable TV details are excluded unless the user explicitly sends a diagnostic report.
+- Diagnostic logs are minimal, temporary, and redacted; exporting diagnostics is an explicit user action.
+
+## V1 scope
+
+V1 is a finished consumer product, not a protocol demo. It includes:
+
+- two evidence-selected smart-TV ecosystems;
+- built-in phone IR where available;
+- automatic discovery, pairing, remembered devices, reconnection, and failure recovery;
+- capability-driven controls and premium accessible phone-native remote UX;
+- multiple remembered TVs;
+- casting/mirroring;
+- voice control only when the connected ecosystem exposes it cleanly and safely, and only if it does not delay launch;
+- honest compatibility information;
+- privacy-safe crash/error reporting as defined above.
+
+## Explicit V1 non-goals
+
+- Macros/scenes/automation.
+- External IR hubs or dedicated external control hardware.
+- Soundbars, receivers, and other non-TV living-room devices; the product should leave room for them later.
+- A full drag-and-drop remote designer.
+- Required cloud accounts or cloud relay for core control.
+- Advertising.
+- A paid/freemium/subscription requirement at launch; V1 is free and the business model can be revisited after product value is proven.
+- Selecting or implementing an application framework, language, database, auth scheme, hosting target, or accepted architecture during discovery.
+
+## Compatibility promise
+
+Compatibility must be specific and honest. Publish a supported-device view that distinguishes at least:
+
+- **Tested** — verified on real hardware/model/firmware in the release test matrix.
+- **Expected** — expected to work from verified protocol/family evidence but not yet represented by a specific tested device.
+- **Unsupported** — known not to work or intentionally not supported.
+
+A good open-source implementation is sufficient to **shortlist** an ecosystem for deeper investigation, not to ship it.
+
+Before an ecosystem ships, validate current legal/terms constraints, security model, protocol stability, pairing behavior, maintenance risk, user reach, and real-device behavior.
+
+One physical TV can prove the first engineering integration for an ecosystem. Release requires a deliberate hardware matrix covering more than one model/firmware generation so “works on my TV” is not mistaken for product support.
+
+If a vendor changes a protocol and previously supported devices break, treat that as a high-priority regression: restore support where feasible or clearly update the affected compatibility status.
+
+## Success criteria
+
+Headline success metric:
+
+> A user with a supported device can install/open the app, find the device, pair it, and reach working control in under two minutes.
+
+Release quality also requires:
+
+- command reliability that feels comparable to a physical remote; failures should be rare enough that an ordinary user does not think about them;
+- finished setup/recovery/security/privacy behavior, not only happy-path control;
+- a deliberate real-hardware compatibility matrix for each shipping ecosystem;
+- premium, accessible UI quality without sacrificing reliability.
+
+## Research still required in discovery
+
+- Choose the first two smart-TV ecosystems using current evidence.
+- Resolve vendor terms/legal restrictions on third-party remote control.
+- Validate protocol stability, pairing flows, security identities, wake behavior, app launch/text input/casting/voice capabilities, and maintenance burden.
+- Validate IR dataset provenance, quality, matching strategy, and device coverage.
+- Define the release hardware matrix once the two ecosystems are selected.
+- Finish product naming.
+
+## Research provenance rule
+
+Uploaded universal-remote and harvest-matrix ZIPs are useful research evidence only. They do not override repository governance and do not become product requirements unless the product owner explicitly adopts an idea during discovery.
+
+## Lifecycle boundary
+
+This document does not select the application stack. Discovery must finish and be reviewed before moving to `architecture`. Application code remains blocked by the no-stack guard until an accepted application-stack ADR and the later implementation transition satisfy the repository lifecycle gate.
