@@ -330,6 +330,17 @@ no architecture work, no lifecycle change.
 - Hardware matrix: criteria defined, execution not started. Naming: criteria and
   candidates researched, no decision. Casting PARTIAL, voice NOT VERIFIED.
 
+- CI on the PR head (run `34869405838`, commit `6fe7b2a`): **both jobs `success`** —
+  `Foundation gate` and `Independent checks`. The job's steps confirm the gate
+  really ran: `Ensure shellcheck is present`, `Make PyYAML available for the
+  workflow YAML check`, `Run the verification gate`, and `Run the negative tests
+  (gate must fail when it should)` all `success`. Note this validates the
+  environment finding above — CI installs PyYAML itself, so `workflows_yaml` runs
+  there; and CI has shellcheck, so `shell_lint` is not skipped in CI. The raw job
+  log text could not be retrieved from this sandbox (the Azure blob redirect for
+  the log returned `EOF`), so the evidence is the per-step conclusions, not the
+  logged `RESULT:` line.
+
 **Next:**
 - Independent review of this PR by ChatGPT; do not self-merge.
 - Highest-value discovery work now is the security trust analysis, since it is the
@@ -344,4 +355,5 @@ no architecture work, no lifecycle change.
 
 **ADR:** docs/decisions/0005-v1-ecosystem-selection.md (accepted — product direction only)
 **Issue:** #8 (this task), #7 (approval, closed as completed)
+**PR:** #10 (`arena/01a0a0b5-greenfield4`, left open for independent review, not self-merged)
 **Base:** PR #6 merged at `769b9f2`
