@@ -5,6 +5,20 @@
 **Sources:** GitHub primary via gh api/fetch_page (pinned), PyPI/GH releases (primary), developer.roku.com (primary), web_search (secondary), labeled VERIFIED/SECONDARY/INFERRED
 **Status:** evidence for ADR-0005, not a stack decision, security validation PARTIAL pending pinning design
 
+**Security trust model — superseded in depth, not in scope.** This document's per-ecosystem
+security sections remain valid as ecosystem-selection evidence, but the trust model was analysed in
+far greater depth from pinned primary sources on 2026-09-14 (issue #11). Read
+[`2026-09-14-security-trust-model.md`](2026-09-14-security-trust-model.md) for the authoritative,
+separated treatment of TLS transport validation, pairing authentication, persistent device identity,
+first-use trust, and reconnect trust, and
+[`2026-09-14-hardware-validation-matrix.md`](2026-09-14-hardware-validation-matrix.md) for the tests
+that remain unexecuted. Those documents do not upgrade either ecosystem from PARTIAL. Two
+corrections to this document's security text: the Samsung finding also applies to the **async** path
+(`helper.get_ssl_context()` sets `CERT_NONE` and `check_hostname = False`), not only
+`connection.py`; and the Android TV pairing code is a **6-symbol hexadecimal** code (protocol
+negotiates `ENCODING_TYPE_HEXADECIMAL`, `symbolLength: 6`), not a decimal PIN — the `"123456"` in
+the library's README is six characters that happen to be valid hex.
+
 This document establishes verifiable evidence for selecting the first two V1 ecosystems per `docs/PRODUCT.md` research requirements: legal/terms, security model, protocol stability, pairing, wake, capabilities, maintenance risk, user reach. Separates VERIFIED facts, secondary evidence, inference, unresolved.
 
 ## Market reach baseline

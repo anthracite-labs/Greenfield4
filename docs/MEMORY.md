@@ -399,3 +399,53 @@ moving the head.
 **Rule for future sessions:** never commit "CI is green on head `<sha>`". Write
 the local results and the per-commit CI facts into memory, and put the
 final-head witness in the PR body after the last push.
+
+## 2026-09-14 — Security trust-model validation for Samsung Tizen and Android TV Remote v2 (issue #11, branch arena/01a0a0e4-greenfield4)
+
+**Context:** Base `main` at `92730e6` (PR #10 merged). ADR-0005 accepted for product direction only, with security recorded PARTIAL and explicitly part of what the product owner accepted. This session was asked to validate the two trust models with primary evidence and to separate protocol facts from hardware-dependent designs. Discovery research only — not architecture, not implementation.
+
+**Preflight (all verified from tools, not assumed):**
+- PR #10 MERGED (`92730e6`, 2026-09-14T17:06:22Z); ADR-0005 `accepted`; `PROJECT_PHASE=discovery`, `ALLOW_APP_STACK=0`, `STACK_DECISION_ADR=` empty.
+- PR #9 was an obsolete duplicate: same issue (#8), same body text ("Closes #8"), same substantive files, opened 16:21:53Z and left `mergeable: CONFLICTING` / `mergeStateStatus: DIRTY` after PR #10 merged. Confirmed by reading both PR bodies and diffs. **Closed PR #9 as superseded with a factual comment; not merged.**
+- No open issue covered this work (all issues #1–#8 closed), so created **issue #11** with 16 acceptance criteria *before* writing any durable conclusion.
+
+**Primary sources read at pinned refs** (all via `gh api ... ?ref=<pinned>` and decoded in this session):
+- `xchwarze/samsung-tv-ws-api` tag `v3.0.6` — `connection.py`, `async_connection.py`, `helper.py`, `remote.py`, `README.md`.
+- `kud/androidtv-remote` commit `5a05d73eb477` (v0.1.2) — `pairing-manager.ts`, `remote-manager.ts`, `certificate-generator.ts`, `pairing-message-manager.ts`, `README.md`, `docs/index.mdx`, `test/digest.test.ts`.
+- `tronikos/androidtvremote2` commit `b09f21432ba3` — `pairing.py`, `androidtv_remote.py`, `base.py`. Used as an **independent cross-check** on the Android TV digest.
+
+**What was actually established (new, beyond the previous session):**
+- **Samsung**: `CERT_NONE` is in **both** paths — sync `connection.py` *and* async `helper.get_ssl_context()` (which additionally sets `check_hostname = False`). The previous session recorded only the sync line.
+- **Samsung**: the token is attached **only when `ssl and token is not None`**, so on plaintext port 8001 the reference client sends no token at all. "A token exists" does not imply the transport is authenticated.
+- **Samsung**: nothing binds the token to any certificate, key, or device identity — it is a pure bearer secret. First-use MITM resistance therefore **not established**.
+- **Android TV**: the pairing code is **6 hex symbols** (protocol negotiates `ENCODING_TYPE_HEXADECIMAL`, `symbolLength: 6`), not a decimal PIN; `androidtvremote2` enforces `len == 6` and hex-parseability. The `"123456"` in the README is six chars that happen to be valid hex.
+- **Android TV**: the digest is `SHA-256(clientMod || "0"+clientExp || serverMod || "0"+serverExp || code[2:])`, and `code[0:2]` is an **8-bit check byte** compared to `hash[0]`. Both implementations agree byte-for-byte. So the one-byte check is a cheap sanity check, **not** the security mechanism — the mechanism is the full 32-byte secret sent to the TV.
+- **Android TV**: the TV certificate subject carries name + MAC (`CN=atvremote/.../XX:XX:XX:XX:XX:XX`). Useful as a label; **not** an authenticator, because it is asserted by the very certificate being validated (circular).
+- **Android TV**: neither reference client persists any **server** identity, so reconnect is unprotected in both. But fail-closed pinning is viable **without** any global trust-all mode (use the paired self-signed cert as its own trust anchor).
+- **Neither ecosystem was upgraded.** Both remain PARTIAL; both FAIL the identity-change and refuse-unsafe-connection invariants as shipped by their reference clients.
+
+**Surprises / things that cut against the earlier write-up:**
+1. The Android TV binding is real and cryptographically meaningful, but whether the **TV enforces** it is closed-firmware and **unproven**. I deliberately did not promote this from inference to VERIFIED even though the design is clear from two independent clients.
+2. `kud`'s `sendCode` has a genuine defect: `hexStringToBytes` is applied to the raw code while the digest uses `code.slice(2)`. Confirmed with Node 22 — `hexStringToBytes("0x1A2B3C")` returns `[NaN, 26, 43, 60]`, so a `0x`-prefixed code can never pass the check, and an unprefixed code compares the wrong byte. `androidtvremote2` handles this correctly. Reference-implementation defect, not a protocol flaw — but a warning that this digest must be tested against real hardware, not ported on faith.
+3. Samsung's first-use exposure is **structural, not fixable by pinning**: TOFU has no prior fingerprint at first pairing. This is a genuine conflict with a non-negotiable PRODUCT.md invariant and could not be resolved by more research.
+
+**Recorded as an open conflict for product-owner decision (deliberately NOT resolved here):** Samsung first-use MITM resistance cannot be achieved by TOFU alone. Options recorded: accept documented residual risk; add out-of-band fingerprint confirmation; or decline Samsung for V1. Routed to the product owner rather than handled by weakening the requirement or reversing ADR-0005.
+
+**Did not do:** did not touch `config/project.env`; did not change ADR-0005 (decision and status are unchanged; only the research docs were sharpened); did not weaken any PRODUCT.md or DOMAIN.md requirement; did not execute a single hardware test; did not reach any vendor portal (egress allowlist) — reported as reduced coverage.
+
+**Artifacts:**
+- `docs/research/2026-09-14-security-trust-model.md` (new) — the main deliverable; per-ecosystem, labelled evidence, five separate trust concerns, mapped against named invariants.
+- `docs/research/2026-09-14-hardware-validation-matrix.md` (new) — 17 Samsung + 20 Android TV tests, all `NOT RUN`.
+- `docs/plans/0011-security-trust-validation.md` (new) — plan per planning skill.
+- `docs/PRODUCT.md` — two research-checklist rows sharpened, one new open-conflict row added, exit criteria updated. No requirement weakened.
+- `docs/research/2026-09-14-ecosystem-evidence.md` — pointer added plus two corrections (async `CERT_NONE`; hex code, not decimal PIN).
+
+**Next (highest value first):**
+- Run **ATV-17** (substitute a certificate during pairing) — it is the single decisive test: it settles whether the Android TV digest binding is actually enforced, which is the largest open security question on either track.
+- Then **ATV-18**, **SAM-17**, and the firmware-update stability tests (**SAM-13 / ATV-13**) — the last group decides whether pinning is shippable or merely theoretical.
+- Get the product-owner decision on the Samsung first-use conflict; do not let it sit as an implicit acceptance.
+- Still open and untouched: vendor legal/terms (needs human portal access), IRDB/LIRC licensing, naming, casting PARTIAL, voice NOT VERIFIED.
+- Do **not** move to `architecture` and do **not** call either ecosystem shipping-ready.
+
+**Issue:** #11
+**PR:** opened from `arena/01a0a0e4-greenfield4`, left open for independent review, not self-merged.
