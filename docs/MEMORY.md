@@ -214,3 +214,30 @@ move to architecture until the product definition is reviewed.
 **ADR:** docs/decisions/0005-v1-ecosystem-selection.md (proposed)
 **PR:** #6
 **Issue:** #7 (open, no approval)
+
+## 2026-09-14 — Discovery-state reconciliation: Issue #7 product-owner approval is durable (issue #8, branch arena/01a0a0b0-greenfield4)
+
+**Context:** Current `main` after PR #6 merge (`769b9f2`). Issue #7 is closed. Explicit product-owner approval is recorded on Issue #7 by anthracite-labs (comment 2026-09-14T16:08:57Z): proceed with the Android TV / Google TV + Samsung Tizen V1 ecosystem direction in ADR-0005, subject to documented PARTIAL security/legal validation and remaining discovery exit criteria. Session branch `arena/01a0a0b0-greenfield4`. This is governance/decision reconciliation, not new research and not architecture work.
+
+**Did:**
+- Created Issue #8 for this reconciliation with acceptance criteria matching the objective.
+- Replaced stale current-state statements that product-owner approval does not exist. Recorded only the Issue #7 approval actually present; did not invent security, legal, IRDB/LIRC, naming, hardware, or architecture approval.
+- Updated ADR-0005 Deciders to include product owner (anthracite-labs via Issue #7). Reassessed status: approval is sufficient for the ecosystem-selection **product-direction** decision, so ADR-0005 changed from `proposed` to `accepted`. Preserved all unresolved technical/legal caveats. Did not weaken PRODUCT.md or DOMAIN.md security requirements.
+- PRODUCT.md now records Android TV / Google TV + Samsung Tizen as the approved V1 ecosystem direction. Marked “choose the first two smart-TV ecosystems” complete at product-direction level. Remaining discovery items stay open/PARTIAL: vendor legal/terms; Samsung and Android TV security; IR source/legal; real-hardware matrix execution; naming; casting/voice.
+- IRDB remains conditional on documented license obligations and separate product-owner/legal acceptance (not part of Issue #7). LIRC remains unresolved and not an approved shipping source.
+- Kept `PROJECT_PHASE=discovery`, `ALLOW_APP_STACK=0`, `STACK_DECISION_ADR` empty. No application stack, framework, source code, database, auth, hosting, or UI. Did not move to architecture.
+- Updated current-state notes in ecosystem-evidence and IR-dataset research docs so they do not contradict the reconciled story. Did not rewrite historical MEMORY entries. Wrote `docs/plans/discovery-approval-reconciliation.md`. Updated decisions index.
+
+**Verified:**
+- GitHub starting state via `gh api`: Issue #7 `state=closed`, `state_reason=completed`, `closed_at=2026-09-14T16:09:20Z`; approval comment id 5666976043 by anthracite-labs; PR #6 `merged=true`.
+- `bash scripts/verify.sh` → PASS — 15 passed, 0 failed, 3 skipped (`shell_lint` shellcheck not installed; `agentshield` scanned 0 files advisory; `workflows_yaml` no YAML parser). Lifecycle check: `phase=discovery, allow_app_stack=0`. `no_app_stack` passed. Links 54 resolve. Secrets 58 files scanned, none found.
+- Code review: docs-only governance reconciliation; no CRITICAL/HIGH; no secrets; no new deps; no app stack. Security review skipped: no `.ecc/rules/security.md` triggers and `config/project.env` unchanged.
+- Spec review against Issue #8: see PR body conformance table.
+
+**Learned:** Issue #7 approval is product-direction only and is explicitly subject to PARTIAL security/legal validation. Accepting ADR-0005 is correct for that decision and must not be read as shipping readiness.
+
+**Next:** Independent review of this PR. Remaining discovery work: Samsung and Android TV security/TOFU hardware validation; vendor legal/terms with human portal access; IR source/legal validation (IRDB obligations, LIRC unresolved); real-hardware matrix execution; naming; remaining casting/voice validation. Do not move to architecture.
+
+**ADR:** docs/decisions/0005-v1-ecosystem-selection.md (accepted, product-direction)
+**Issue:** #8
+**Refs:** Issue #7 (closed, product-owner approval recorded)

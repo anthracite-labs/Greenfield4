@@ -92,7 +92,7 @@ Per PRODUCT.md power/failure and DOMAIN.md:
 - IRDB: Does CDN runtime access count as "accessing database over network" under license? Yes, license explicitly allows accessing over network, with same obligations — CDN does not reduce obligations. Operational interpretation of "up to three fully licensed copies/units" for free app (Play Store/APK vs physical shipment) requires product-owner/legal confirmation, not assumed.
 - LIRC: Need primary license file for config data; remains unresolved, not approved as shipping source.
 - Coverage stats need primary authoritative source or hardware validation.
-- Governance: Product-owner/legal acceptance of IRDB obligations still required before treating as approved V1 shipping source; IR capability fixed, data sources remain candidate/evaluated until resolved.
+- Governance: Product-owner/legal acceptance of IRDB obligations still required before treating as approved V1 shipping source; IR capability fixed, data sources remain candidate/evaluated until resolved. Issue #7 product-owner approval of the V1 ecosystem direction did **not** accept IRDB or LIRC as shipping dependencies.
 
 ## References
 
