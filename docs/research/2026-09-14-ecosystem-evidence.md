@@ -199,15 +199,15 @@ No legal opinion; research evidence only.
 
 ## Recommendation for V1 — re-evaluated after corrections, governance fix session 3
 
-**Current proposed/leading candidates:** Android TV / Google TV + Samsung Tizen, but with **security validation PARTIAL**, **casting/voice PARTIAL/NOT VERIFIED**, **product-owner approval pending**, so ADR remains **proposed** not accepted, and PRODUCT.md must describe as proposed candidates not fixed constraints.
+**Approved V1 ecosystem direction:** Android TV / Google TV + Samsung Tizen — **approved by the product owner on Issue #7** ([issuecomment-5666976043](https://github.com/anthracite-labs/Greenfield4/issues/7#issuecomment-5666976043), 2026-09-14T16:08:57Z; issue closed as `completed`), so ADR-0005 is **accepted** and PRODUCT.md describes these as the approved direction. The approval is explicitly "subject to the documented PARTIAL security/legal validation and remaining discovery exit criteria", so **security validation PARTIAL** and **casting/voice PARTIAL/NOT VERIFIED** are unchanged by it.
 
 Rationale after correction (separating VERIFIED facts, secondary, inference, proposed design, unresolved, product-owner decisions):
 - **VERIFIED facts:** Market reach Samsung 16.9%, Android/Google TV >24% [TechInsights primary]; samsungtvws v3.0.6 active 2026-09-11; kud/androidtv-remote pairing-manager.ts rejectUnauthorized:false and hash binding cert material+PIN [primary code]; connection.py CERT_NONE [primary]; Roku primary docs restriction.
 - **Secondary:** TVgrip PR #2 and hafa-remote PR #15 pinning pattern viability; Pixalate US share; Swift TVCertificatePinner note.
 - **Inference:** Maximum reach ~40.9% shipment INFERRED from VERIFIED figures; both support core remote requirements: discovery, pairing (popup+token, PIN+cert), power via WoL/toggle, volume, D-pad, text input, app launch — enabling <2 min setup [VERIFIED via primary libs]; Android-first aligns with product constraint.
 - **Proposed design:** TOFU certificate pinning as candidate mitigation for both ecosystems, not demonstrated satisfying design; requires hardware validation.
-- **Unresolved:** Samsung first-use MITM resistance (token flow not shown to cryptographically bind TLS cert); Android TV first-use trust persistence and MITM resistance proof; legal/terms official validation; hardware matrix; product-owner approval of IRDB obligations and ecosystem candidates.
-- **Product-owner decisions:** None yet in durable GitHub record — Issue #7 open, no approval; ADR deciders exclude product owner for proposed state.
+- **Unresolved:** Samsung first-use MITM resistance (token flow not shown to cryptographically bind TLS cert); Android TV first-use trust persistence and MITM resistance proof; legal/terms official validation; hardware matrix; product-owner/legal acceptance of IRDB license obligations. (The ecosystem **direction** is no longer unresolved — it is approved on Issue #7; the items listed here still are.)
+- **Product-owner decisions:** Ecosystem direction approved on Issue #7 ([issuecomment-5666976043](https://github.com/anthracite-labs/Greenfield4/issues/7#issuecomment-5666976043), 2026-09-14T16:08:57Z, `author_association=OWNER`), subject to the documented PARTIAL security/legal validation and remaining discovery exit criteria. **Not** decided by that comment: IRDB license-obligation acceptance, LIRC database licensing, vendor legal/terms validation, security validation, hardware validation, and naming.
 
 - **Security:** Both reference implementations disable server cert verification (CERT_NONE, rejectUnauthorized:false) [VERIFIED primary code]. Samsung: token flow not cryptographically bound to cert, first-use MITM resistance unresolved. Android TV: PIN pairing hash includes client/server cert moduli/exponents + PIN [VERIFIED], providing stronger binding but still requires proof and persistence validation. TOFU pinning is candidate mitigation, not demonstrated solution, and must not be generalized across ecosystems. Until proven against PRODUCT.md/DOMAIN.md including unexpected identity change → fail safe and re-pair, **security validation PARTIAL**.
 - **Casting/mirroring:** Samsung casting NOT via WS API, requires separate Smart View SDK/DIAL/Google Cast validation [SECONDARY]; Android TV gives Google Cast natively but remote API only launches apps. So casting criterion **PARTIAL**, not MET.
@@ -219,7 +219,7 @@ Rationale after correction (separating VERIFIED facts, secondary, inference, pro
 
 **Rejected for V1:** Roku ECP — fails security invariants and now primary docs explicitly restrict 3rd-party mobile apps and require Control by mobile apps Enabled as of OS 14.1, plus no auth. Documented as Unsupported with primary source.
 
-**Governance:** Until explicit product-owner approval exists in durable GitHub record (Issue #7 approval), ecosystem choice must remain proposed/leading candidates, not fixed V1 constraints. Do not accept ADR merely to make PR easier to merge.
+**Governance:** Explicit product-owner approval for the ecosystem direction now exists in the durable GitHub record on Issue #7, so Android TV/Google TV + Samsung Tizen are fixed V1 constraints rather than proposed candidates, and ADR-0005 is `accepted`. That approval covers product direction only; security and legal validation remain PARTIAL and still gate shipping. Do not accept an ADR merely to make a PR easier to merge — this acceptance rests on the recorded approval.
 
 ## Hardware matrix criteria (for release) — unchanged
 
@@ -228,6 +228,14 @@ Rationale after correction (separating VERIFIED facts, secondary, inference, pro
 - Unsupported: known not to work or intentionally not supported. Roku ECP Unsupported for V1 due to security + primary docs restriction.
 
 ## Next steps — corrected session 3 governance fix
+
+> **Partly superseded (2026-09-14, Issue #8 reconciliation).** The bullets below
+> are the session-3 plan, kept as a historical record. Any bullet that asserts
+> ADR-0005 should stay `proposed`, or that product-owner approval does not exist,
+> no longer applies: ADR-0005 is `accepted` and approval is recorded on Issue #7.
+> Everything else here — security PARTIAL, legal PARTIAL, IR licensing, naming,
+> hardware matrix — still stands. Do not edit this record; current state lives in
+> `docs/PRODUCT.md`, ADR-0005, and `docs/MEMORY.md`.
 
 - Keep ADR-0005 proposed, update deciders to reflect no product-owner approval in durable record, update with corrected licensing, security PARTIAL with separated trust analysis (Samsung first-use MITM unresolved, Android TV cert binding verified but persistence unresolved), casting PARTIAL, voice NOT VERIFIED.
 - Update PRODUCT.md to remove ecosystems from fixed constraints while proposed, describe as proposed/leading candidates, correct IR data sources to candidate/evaluated not fixed, correct IRDB legal wording (no unsupported interpretation, CDN does not remove obligations), mark choose-first-two-ecosystems PARTIAL pending approval, preserve distinction between product-direction approval (pending) and unresolved security/legal validation.
