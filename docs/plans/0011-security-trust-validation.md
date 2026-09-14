@@ -93,3 +93,30 @@ Research-only. No application code, no stack, no lifecycle change. The method is
 - Executing any hardware test.
 - Changing ADR-0005's decision or status, or reversing the accepted ecosystem direction.
 - Moving out of `discovery` or touching `config/project.env`.
+
+---
+
+## Correction round (appended 2026-09-14) — response to independent review of PR #12
+
+The plan above covers the original research pass. This append records a correction round driven by
+ChatGPT's independent review (CHANGES_REQUESTED, 2026-09-14T20:08:27Z). The approach did not change;
+three evidence errors did.
+
+**Added phase 4a — AOSP protocol reference.** Read `platform/external/google-tv-pairing-protocol` at
+`7c99785` (`PoloChallengeResponse.java`, `PairingSession.java`, `cpp/.../pairingsession.cc`). This
+supplies the **server/output-device** half of the Android TV protocol that no client library can
+provide. Establishes: alpha construction, gamma layout, client-side `checkGamma` gate before
+transmission, and **server-side `VerifySecret` with `kErrorInvalidChallengeResponse` on mismatch and
+SecretAck only on match**.
+
+**Corrected phases:**
+
+| Phase | Correction |
+| :-- | :-- |
+| 3 (Android TV primary evidence) | Client libraries are evidence of **client** behaviour only; server behaviour now sourced from AOSP, not inferred |
+| 4 (synthesise) | Introduced a three-way label split: `[VERIFIED — protocol]` / `[VERIFIED — client]` / `[HARDWARE-REQUIRED]` |
+| 5 (hardware matrix) | ATV-17 split into 17a–d; 17b made decisive **without interception** |
+| 6 (PRODUCT/MEMORY) | Removed the withdrawn `kud` defect claim; scoped Samsung server-side claims; removed the duplicated paragraph |
+
+**Scope unchanged:** no ADR, no lifecycle change, no application code, no hardware execution, no
+weakening of PRODUCT.md or DOMAIN.md, no reversal of ADR-0005.

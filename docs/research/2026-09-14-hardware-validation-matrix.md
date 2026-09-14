@@ -30,7 +30,9 @@ device and the recorded evidence exists. Until then every row is `NOT RUN`.
 | PHONE-1 | Android phone, the Greenfield4 test client | Primary client |
 | PHONE-2 | Second Android phone | Distinguishes client-side from TV-side state; needed for the independent-pairing tests |
 | AP-1 | Consumer router/AP with a configurable DHCP pool | Network/IP-change and DHCP tests |
-| PROXY-1 | Laptop running a TLS interception proxy (e.g. mitmproxy) on the same LAN | Substituted-certificate tests |
+| PROXY-1 | Laptop running a TLS interception proxy (e.g. mitmproxy) on the same LAN | Substituted-certificate tests (ATV-17c, SAM-17) |
+| CLIENT-INST | An **instrumented Greenfield4 test client** under our control that can log the TLS peer-certificate fingerprint, the local gamma-check outcome, the exact Secret bytes transmitted, and the response class — and that can be told to transmit a deliberately corrupted Secret | **ATV-17a and ATV-17b only.** This is what makes the decisive test possible without any interception: the client already holds its own key and talks straight to the TV, so injecting a bad Secret needs no MITM |
+| LAB-NET | An isolated lab network we own, carrying only the test devices | All interception tests; keeps ATV-17c and SAM-17 off any network used by other people |
 
 ### Required firmware/OS versions
 
@@ -95,6 +97,28 @@ matrix must be repeatable at a stated version.
 
 # Android TV / Google TV Remote v2 tests
 
+> **Why ATV-17 was split into four tests (corrected 2026-09-14 after independent review).** The
+> original ATV-17 pointed a terminating MITM proxy at pairing and treated "pairing failed" as
+> evidence that the TV verifies the Secret. **That inference is invalid.** The AOSP reference
+> (`PairingSession.doPairingPhase()`, `SetSecret()`) shows the client runs a **local `checkGamma`
+> before transmitting anything**, so a generic terminated TLS session can fail entirely on the
+> phone and never reach the TV. Reading that as server-side rejection would be a false positive.
+>
+> The redesigned test separates the concerns:
+>
+> - **ATV-17a** proves the harness works and captures a clean baseline.
+> - **ATV-17b** is decisive and needs **no interception at all**: our own client sends a
+>   deliberately corrupted Secret directly to the TV. Because the client already holds its key and
+>   is talking to the real TV, the local check is bypassed by design and the TV's response
+>   unambiguously reveals whether it verifies.
+> - **ATV-17c** keeps the substituted-certificate scenario but only ever **classifies the failure
+>   point**; it never infers server verification from a generic failure.
+> - **ATV-17d** repeats the baseline on the second device generation before 17b is treated as an
+>   ecosystem result.
+>
+> **Safety.** ATV-17a/17b/17d involve no interception whatsoever. Only ATV-17c and SAM-17 use a
+> proxy, and only on LAB-NET — an isolated network we own.
+
 | ID | Test | Expected observation | Pass criterion | Evidence |
 | :-- | :-- | :-- | :-- | :-- |
 | ATV-01 | **Initial pairing.** Clean client (no stored cert) to port 6467; TV displays a 6-hex-symbol code; enter it. | `secret_ack` / `pairingSecretAck` received. | Pairing completes **and** the client captures the server cert DER and SPKI fingerprints at pairing time. | Code format as displayed (confirm 6 hex symbols); fingerprints |
@@ -113,7 +137,10 @@ matrix must be repeatable at a stated version.
 | ATV-14 | **Factory reset.** Reset the TV, reconnect with the stored client cert and pinned server cert. | TV rejects the client and/or presents a new cert. | **Fails closed**; re-pair required. Silent acceptance is a **FAIL**. | Pre/post fingerprint; failure mode |
 | ATV-15 | **Explicit unpair / re-pair.** Remove the client from the TV's accessory list, then re-pair. | TV rejects the old client cert; new pairing issues a new code. | Old cert rejected (`unpaired` / `InvalidAuth`); new pairing works. | Error surfaced; new code |
 | ATV-16 | **Unexpected identity change.** Point the client at ATV-B while holding ATV-A's pinned identity. | Server cert differs. | Client **refuses**, surfaces "TV identity changed", requires re-pair. Silent acceptance is a **FAIL**. | Pinned vs presented fingerprint; UI state |
-| ATV-17 | **Substituted certificate during pairing (MITM).** Interception proxy terminates 6467 with its own cert; complete the code flow. | Unknown — this is the decisive test. | **No pass/fail.** Record whether pairing **succeeds** (TV does not verify the digest → the binding is not enforced) or **fails** (TV verifies → first-use MITM resisted). | Proxy cert fingerprint; pairing outcome |
+| ATV-17a | **Harness validation — correct Secret.** Instrumented client pairs normally against ATV-A: records TLS peer cert fingerprint, local `checkGamma` outcome, the exact Secret bytes sent, and the TV's response. Sends the **correct** alpha. | SecretAck received. | **PASS only if** SecretAck is received **and** the log shows the correct alpha was sent. This proves the harness and the baseline before any fault is injected. If this fails, 17b/17c are void. | Client log: peer fingerprint, local-check result, Secret bytes, response class; TV-observed pairing result |
+| ATV-17b | **Decisive — deliberately mismatched Secret.** Using the same harness, complete the handshake and read gamma from the TV, but **transmit an intentionally corrupted Secret** (e.g. flip one byte of the computed alpha). No proxy, no interception: the client holds its own key and talks directly to the TV. | Unknown — this is the decisive observation. | **Record the TV's response class, do not pre-label it.** <br>• TV returns an error / closes without SecretAck → **server-side secret verification CONFIRMED on this firmware.** <br>• TV returns SecretAck → **server-side verification ABSENT on this firmware — critical finding, stop and escalate.** <br>Do **not** interpret any other outcome as confirmation. | Exact Secret bytes sent; TV response bytes/state; whether SecretAck observed; firmware build |
+| ATV-17c | **Substituted certificate during pairing (terminating proxy, owned lab LAN only).** Proxy terminates 6467 with its own cert; complete the code flow. | Unknown. | **Classify the failure point — never infer server verification from a generic failure.** Explicitly distinguish: (1) TLS/mTLS handshake failure; (2) client-side gamma/check-byte rejection **before** Secret transmission; (3) Secret actually sent; (4) TV rejection after receiving a mismatched Secret; (5) SecretAck / pairing success. Only outcome (4) evidences server-side verification. | Proxy cert fingerprint; client log showing whether Secret was sent; the classified rejection point |
+| ATV-17d | **Instrumented clean pairing (baseline capture).** Repeat 17a on **ATV-B** (different vendor/OS build). | Same as 17a. | Confirms the instrumentation is portable across device generations before 17b is relied on as an ecosystem result. | Same artefacts as 17a, per device |
 | ATV-18 | **Substituted certificate on reconnect (MITM).** Proxy terminates 6466 with its own cert after a successful pairing. | With pinning: rejected. | **Must fail closed.** Without pinning, record that it is accepted — which is the verified weakness in the reference posture. | Proxy cert fingerprint; client behaviour |
 | ATV-19 | **Wrong code.** Enter an incorrect 6-symbol code during pairing. | Pairing rejected; no credential issued. | Pairing fails; client surfaces an error and does not fall back to an insecure path. | Error surfaced |
 | ATV-20 | **Independent second phone.** Pair PHONE-2 to the same TV without touching PHONE-1. | Both work independently; PHONE-1's credentials unaffected. | Both control the TV; no credential sharing between phones. | Two client-cert fingerprints; both functional |
@@ -124,8 +151,9 @@ matrix must be repeatable at a stated version.
 
 The decisive tests — the ones whose outcome would change a conclusion in the trust model — are:
 
-1. **ATV-17** — determines whether the Android TV pairing binding is actually enforced. This is the
-   single largest open question on either track.
+1. **ATV-17b** — determines whether contemporary target firmware enforces the server-side secret
+   verification that the AOSP reference implementation documents. This is the single largest open
+   question on either track. **ATV-17a must pass first**, or 17b's result is meaningless.
 2. **ATV-18** — determines whether the fail-closed pinning design works on reconnect.
 3. **SAM-17** — determines the real-world shape of the Samsung first-use exposure.
 4. **SAM-13 / ATV-13** — determine whether pinning survives firmware updates, which decides whether

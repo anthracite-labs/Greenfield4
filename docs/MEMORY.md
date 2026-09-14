@@ -449,3 +449,66 @@ final-head witness in the PR body after the last push.
 
 **Issue:** #11
 **PR:** opened from `arena/01a0a0e4-greenfield4`, left open for independent review, not self-merged.
+
+**Correction to the entry above (appended 2026-09-14, after independent review of PR #12 — this
+replaces specific claims in the previous entry; the previous entry is left intact as history).**
+
+**What changed and why.** ChatGPT's independent review on PR #12 (CHANGES_REQUESTED,
+2026-09-14T20:08:27Z) identified that I had missed an accessible primary source and had overstated
+three things. The review was right on all counts. Corrections applied:
+
+1. **I missed the AOSP pairing-protocol source, and it changed the Android TV conclusion.**
+   `android.googlesource.com/platform/external/google-tv-pairing-protocol` at commit `7c99785` was
+   reachable and implements **both roles**. `PoloChallengeResponse.getAlpha()` is
+   `SHA-256(clientMod ‖ clientExp ‖ serverMod ‖ serverExp ‖ nonce)`; `getGamma()` is
+   `alpha-prefix ‖ nonce` (`new byte[nonce.length * 2]`, copying alpha then nonce). Decisively, the
+   **output-device (TV) path verifies server-side**: `PairingSession.doPairingPhase()` computes
+   `localAlpha` and `Arrays.equals(localAlpha, inbandAlpha)`, throwing `BadSecretException` on
+   mismatch; the C++ `OnSecretMessage` calls `VerifySecret()` and on failure sends
+   `kErrorInvalidChallengeResponse`. **SecretAck is sent only after that comparison succeeds.**
+   Blobs: `81095fd` (PoloChallengeResponse.java), `8baccf4` (PairingSession.java),
+   `011c913` (pairingsession.cc).
+   **Removed:** my claims that TV-side enforcement "is not something a client can prove", that no
+   server-side implementation was available, and the "a code that nothing verifies would be
+   pointless" inference. All three were wrong.
+   **Kept separate:** this is **[VERIFIED — protocol]**. Whether *contemporary firmware* enforces it
+   is **[HARDWARE-REQUIRED]** — the Java files are ©2009 and the C++ ©2012. I did not over-correct:
+   Android TV stays PARTIAL because device conformance, reconnect identity persistence, and hardware
+   behaviour are all still unproven.
+
+2. **My "kud genuine defect" claim was wrong and is withdrawn.** For a valid six-hex-symbol code the
+   byte split is correct Polo gamma layout, confirmed by `getGamma()`. `0x1A2B3C` is eight characters
+   and is **not a valid pairing code**, so behaviour on it is a malformed-input/validation issue, not
+   a protocol flaw. Narrowed to: `kud` lacks explicit six-hex-symbol input validation and handles
+   malformed `0x…` input poorly. I had presented invalid-input behaviour as evidence that valid
+   handling was broken — a real error in reasoning.
+
+3. **Samsung server-side claims were overstated.** "Pure bearer credential / whoever holds it can act
+   as the paired client" and "8001 is an unauthenticated endpoint" are statements about **server**
+   behaviour that a client library cannot prove. Relabelled: no cryptographic binding is
+   **[VERIFIED — client]**; the bearer-token consequence is **[INFERRED]**; the TV's actual
+   association rule is **[HARDWARE-REQUIRED]** / **[UNRESOLVED]**. The Samsung **first-use** finding
+   is unchanged and was not weakened — it rests on the absence of an authenticated TV identity at
+   first connection, which holds regardless of what the server does with the token afterwards.
+
+4. **ATV-17 was diagnostically invalid and was redesigned into ATV-17a–d.** A generic terminating MITM
+   can fail at the client's local `checkGamma` (which runs *before* transmission) and never reach the
+   TV, so "pairing failed" could never prove server-side verification. The decisive test **ATV-17b
+   needs no interception at all**: our own instrumented client reads gamma from the TV and transmits a
+   deliberately corrupted Secret directly, so the TV's response unambiguously reveals whether it
+   verifies. 17a validates the harness, 17c only classifies the failure point, 17d repeats on a second
+   device generation.
+
+5. **PRODUCT.md had the governance/exit-criteria paragraph twice verbatim** (my earlier restore had
+   appended it again). Deduplicated 2 → 1.
+
+**Lesson to carry forward.** "Two independent client implementations agree" is corroboration of
+*client* behaviour only — never evidence of *server* behaviour. Before concluding "the peer's
+behaviour cannot be known", search for the protocol's own reference implementation; and before
+calling something a defect, check whether the input was ever in contract.
+
+**Not changed:** ADR-0005 status and decision (untouched); `config/project.env` (unchanged, phase
+still discovery); no requirement in PRODUCT.md or DOMAIN.md weakened; the Samsung first-use conflict
+remains an open product-owner decision, not resolved here; no hardware test executed.
+
+**Issue:** #11 · **PR:** #12 (updated in place; still open, not self-merged)
