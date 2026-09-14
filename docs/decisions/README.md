@@ -21,9 +21,11 @@ repository appends its own product and stack decisions after them.
 | ADR | Title | Status | Date |
 | :-- | :-- | :-- | :-- |
 | [0001](0001-ecc-on-arena-adapter.md) | Adopt an ECC-on-Arena adapter instead of native ECC | accepted | 2026-09-06 |
+| [0001-repurpose](0001-repurpose-greenfield4-as-product-repository.md) | Repurpose Greenfield4 as the product repository | accepted | 2026-09-13 |
 | [0002](0002-verification-gate.md) | `scripts/verify.sh` + GitHub Actions as the sole quality gate | accepted | 2026-09-06 |
 | [0003](0003-flat-skill-files.md) | Flat per-task workflow files instead of upstream `SKILL.md` directories | accepted | 2026-09-06 |
 | [0004](0004-lifecycle-config-stack-guard.md) | Project lifecycle config replaces the hard-coded no-app-stack guard | accepted | 2026-09-06 |
+| [0005](0005-v1-ecosystem-selection.md) | V1 Smart-TV ecosystems — Android TV/Google TV + Samsung Tizen | accepted | 2026-09-14 |
 
 The ADR that records a project's **implementation stack** is referenced by
 `STACK_DECISION_ADR` in [`../../config/project.env`](../../config/project.env),
