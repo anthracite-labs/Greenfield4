@@ -25,10 +25,10 @@ Reliability and premium visual quality are joint priorities. Broad device-count 
 - Android first, while preserving a credible later iPhone path.
 - Core remote control is local-first and must not require our cloud or an internet connection.
 - No user account is required for core use.
-- V1 targets two major smart-TV ecosystems, selected by evidence rather than by the uploaded research packs alone.
-- Built-in phone IR is a V1 capability when the Android device exposes suitable hardware.
+- V1 will support **two evidence-selected smart-TV ecosystems** (selection based on current evidence, not uploaded research packs alone). **Current proposed/leading candidates** per ADR-0005 **proposed** and research in `docs/research/2026-09-14-ecosystem-evidence.md` are **Android TV / Google TV (Remote v2 protocol, reverse-engineered)** and **Samsung Tizen (2016+ WebSocket API, community reverse-engineered)** — **not fixed/accepted** pending explicit product-owner approval in durable GitHub record and security validation. Security validation for both candidates is PARTIAL pending trustworthy device identity analysis and hardware validation.
+- Built-in phone IR is a V1 capability when the Android device exposes suitable hardware (fixed product capability). **Candidate/evaluated data sources** for IR codes are IRDB (custom permission license per primary LICENSE.md, not CC0, with obligations) and LIRC remotes DB (licensing unresolved) per `docs/research/2026-09-14-ir-dataset.md` — **not fixed shipping dependencies** while legal acceptability remains conditional/unresolved. Product-owner/legal acceptance of IRDB obligations still required.
 - One visible remote may transparently use more than one control transport, for example network control for rich commands and IR for power.
-- Product name and repository slug remain open during discovery.
+- Product name and repository slug remain open during discovery; naming criteria and candidates in `docs/research/2026-09-14-naming.md`.
 - The product owner prefers a Rust core with a switchable UI layer, but that is an **architecture preference only** and is not accepted in discovery.
 
 ## First-run journey
@@ -101,14 +101,14 @@ Security wins over popularity or feature coverage.
 
 V1 is a finished consumer product, not a protocol demo. It includes:
 
-- two evidence-selected smart-TV ecosystems;
-- built-in phone IR where available;
+- **two evidence-selected smart-TV ecosystems — proposed candidates:** **Android TV / Google TV** and **Samsung Tizen** per ADR-0005 **proposed** (defer LG webOS as immediate next candidate, reject Roku ECP for V1 due to security model and primary docs restriction; security validation PARTIAL pending trustworthy identity analysis, product-owner approval pending, so not described as fixed/accepted);
+- built-in phone IR where available as fixed capability; candidate data sources IRDB (custom permission license with attribution/notification/copy obligations requiring product-owner/legal acceptance) and LIRC (licensing unresolved, not approved as shipping source) evaluated per research, not fixed dependencies;
 - automatic discovery, pairing, remembered devices, reconnection, and failure recovery;
 - capability-driven controls and premium accessible phone-native remote UX;
 - multiple remembered TVs;
-- casting/mirroring;
-- voice control only when the connected ecosystem exposes it cleanly and safely, and only if it does not delay launch;
-- honest compatibility information;
+- casting/mirroring — **PARTIAL:** Google Cast native via Android TV separate from remote protocol, Samsung casting via Smart View SDK/DIAL/Google Cast 2026 models requires separate validation, not via WS remote API;
+- voice control only when the connected ecosystem exposes it cleanly and safely, and only if it does not delay launch — **currently NOT VERIFIED** for Samsung Tizen (VoiceControl is on-TV Web API) and Android TV (remote-manager.ts notes voice not implemented), so V1 may ship without voice;
+- honest compatibility information distinguishing Tested / Expected / Unsupported;
 - privacy-safe crash/error reporting as defined above.
 
 ## Explicit V1 non-goals
@@ -132,9 +132,11 @@ Compatibility must be specific and honest. Publish a supported-device view that 
 
 A good open-source implementation is sufficient to **shortlist** an ecosystem for deeper investigation, not to ship it.
 
-Before an ecosystem ships, validate current legal/terms constraints, security model, protocol stability, pairing behavior, maintenance risk, user reach, and real-device behavior.
+Before an ecosystem ships, validate current legal/terms constraints, security model, protocol stability, pairing behavior, maintenance risk, user reach, and real-device behavior — evidence recorded in `docs/research/2026-09-14-ecosystem-evidence.md`.
 
-One physical TV can prove the first engineering integration for an ecosystem. Release requires a deliberate hardware matrix covering more than one model/firmware generation so “works on my TV” is not mistaken for product support.
+**Current proposed/leading V1 candidates:** Android TV/Google TV and Samsung Tizen per ADR-0005 **proposed** (not fixed/accepted, pending product-owner approval and security PARTIAL). LG webOS deferred as immediate next candidate. Roku ECP explicitly **Unsupported for V1** due to security model failure (no authentication, no secret, any LAN device can control if enabled), per business rule "Security wins over popularity" and primary docs restriction. This is honest compatibility, not hidden.
+
+One physical TV can prove the first engineering integration for an ecosystem. Release requires a deliberate hardware matrix covering more than one model/firmware generation so “works on my TV” is not mistaken for product support. Matrix criteria defined in ecosystem research doc: at least 2 models/firmware per ecosystem, recording model, firmware/OS, protocol version, pairing method, wake method, capabilities verified.
 
 If a vendor changes a protocol and previously supported devices break, treat that as a high-priority regression: restore support where feasible or clearly update the affected compatibility status.
 
@@ -151,14 +153,16 @@ Release quality also requires:
 - a deliberate real-hardware compatibility matrix for each shipping ecosystem;
 - premium, accessible UI quality without sacrificing reliability.
 
-## Research still required in discovery
+## Research still required in discovery (update 2026-09-14 corrected session 3 — governance fix)
 
-- Choose the first two smart-TV ecosystems using current evidence.
-- Resolve vendor terms/legal restrictions on third-party remote control.
-- Validate protocol stability, pairing flows, security identities, wake behavior, app launch/text input/casting/voice capabilities, and maintenance burden.
-- Validate IR dataset provenance, quality, matching strategy, and device coverage.
-- Define the release hardware matrix once the two ecosystems are selected.
-- Finish product naming.
+- [ ] Choose the first two smart-TV ecosystems using current evidence — **PARTIAL/proposed:** Android TV/Google TV + Samsung Tizen evaluated as current proposed/leading candidates per ADR-0005 **proposed** and `docs/research/2026-09-14-ecosystem-evidence.md` corrected; selection re-evaluated after fixing licensing/security overstatements, still supported but security PARTIAL and **product-owner approval does not exist in durable GitHub record** (Issue #7 open, no approval). Not marked complete until explicit product-owner approval exists. Distinction preserved between product-direction approval (pending) and unresolved security/legal validation (PARTIAL).
+- [ ] Resolve vendor terms/legal restrictions on third-party remote control — **PARTIAL:** preliminary evidence gathered in ecosystem research doc; official vendor-term validation remains unavailable due to egress allowlist blocking developer.samsung.com, developer.lge.com, Google partner SDK portal; Roku primary docs now reachable (developer.roku.com) showing Control by mobile apps must be Enabled as of OS 14.1 and restriction "ECP commands may not be sent from 3rd-party platforms". Full legal validation requires human access, recorded as reduced coverage, not marked complete.
+- [ ] Validate protocol stability, pairing flows, security identities, wake behavior, app launch/text input/casting/voice capabilities, and maintenance burden — **PARTIAL:** stability/pairing/wake/app launch/text input documented via primary sources (samsungtvws v3.0.6 2026-09-11, LGWebOSRemote, kud/androidtv-remote reverse-engineered), but security identities validation PARTIAL due to CERT_NONE/rejectUnauthorized:false in reference implementations; Samsung first-use MITM resistance unresolved (token flow not shown to cryptographically bind TLS cert), Android TV PIN pairing hash includes cert material but first-use trust and persistence need verification — see research doc separated trust analysis; casting PARTIAL (Samsung not via WS API, requires Smart View SDK/DIAL/Google Cast separate validation); voice NOT VERIFIED (Samsung VoiceControl is on-TV Web API, Android remote-manager.ts notes voice not implemented); maintenance risk for Android TV reassessed as reverse-engineered not official public API, kud lib very new June 2026. Pinning/TOFU is candidate mitigation, not demonstrated solution.
+- [ ] Validate IR dataset provenance, quality, matching strategy, and device coverage — **PARTIAL:** IRDB licensing corrected to custom permission (notify via issue, attribution notice, up to 3 copies on request) per primary LICENSE.md, not CC0; LIRC database licensing unresolved (license null, cannot infer from GPL) and **not approved as shipping source**; coverage/size stats (500k+ codes, 10k brands, 80-85%) are secondary estimates from infishark blog, not verified from primary IRDB repo, removed from fixed constraints; matching strategy documented; V1 IR capability fixed, but IRDB/LIRC are candidate/evaluated data sources until legal acceptability resolved; IRDB requires product-owner/legal acceptance of obligations still pending; runtime CDN access recommended by README for updateability but does not remove license obligations because license also covers network access.
+- [ ] Define the release hardware matrix once the two ecosystems are selected — **criteria defined** in ecosystem research doc (minimum 2 models/firmware per ecosystem, Tested vs Expected vs Unsupported); execution requires real hardware in future session; pinning stability across reboots/firmware must be validated.
+- [ ] Finish product naming — **criteria and candidates researched** in `docs/research/2026-09-14-naming.md`; final name/slug decision deferred to product owner, PROJECT_NAME/SLUG remain blank per ADR-0001.
+
+Remaining discovery exit criteria: obtain explicit product-owner approval on Issue #7 (or other durable approval record) for proposed ecosystem candidates, finalize security pinning/TOFU analysis with hardware validation separating Samsung vs Android TV first-use trust, complete legal/terms validation with human portal access, finalize naming, execute hardware matrix with real devices, and review PRODUCT.md before moving to architecture. Do not move to architecture until security validation resolved or explicitly accepted as PARTIAL with ADR proposed, and product-owner approval exists. Do not accept ADR-0005 merely to make PR easier to merge.
 
 ## Research provenance rule
 
