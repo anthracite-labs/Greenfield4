@@ -1,8 +1,8 @@
 # Research — IR Dataset Provenance, Quality, Matching Strategy
 
-**Date:** 2026-09-14
+**Date:** 2026-09-14 (corrected 2026-09-14 session 2)
 **Phase:** discovery
-**Status:** evidence for V1 IR capability
+**Status:** evidence for V1 IR capability, licensing corrected per primary source
 
 ## Requirement
 
@@ -12,90 +12,90 @@ Research still required: "Validate IR dataset provenance, quality, matching stra
 
 ## Provenance
 
-### IRDB (Infrared Database)
+### IRDB (Infrared Database) — Primary source licensing
 
-- **Source:** `irdb.globalcache.com`, community mirror `github.com/probonopd/irdb` [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
-- **License:** public domain / CC0 [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
-- **Size:** >500,000 individual codes, >10,000 brands and device types [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
-- **History:** Originally maintained by Global Cache (IP-to-IR bridge hardware vendor), released as public resource, now community-maintained [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
-- **Verification:** [VERIFIED web_search] IRDB described as largest public domain IR database.
+- **Source:** `github.com/probonopd/irdb` [VERIFIED gh api repos/probonopd/irdb], mirror of `irdb.globalcache.com` historically [INFERRED from README]
+- **Primary README:** "One of the largest crowd-sourced, manufacturer-independent databases of infrared remote control codes on the web" [VERIFIED gh api repos/probonopd/irdb/readme]
+- **License file primary:** `https://github.com/probonopd/irdb/blob/master/LICENSE.md` [VERIFIED fetch_page raw.githubusercontent.com/probonopd/irdb/master/LICENSE.md]
+- **Actual license text (verbatim from primary):**
+  > irdb Copyright (c) 2013-15 Simon Peter and contributors
+  > You may include this database and derivative works with your software (e.g., app) and/or access this database over network from your commercial or non-commercial software (e.g., app) or embedded hardware (subsequently called "your product") provided that:
+  > 1. Prior to using this database in your product, you will inform the irdb project about your product by opening an issue on https://github.com/probonopd/irdb/issues
+  > 2. The following notice shall be included in your product: `Contains/accesses irdb by Simon Peter and contributors, used under permission. For licensing details and for information on how to contribute to the database, see https://github.com/probonopd/irdb`
+  > 3. You will make available up to three fully licensed copies/units of your product to the irdb team, represented by Simon Peter, free of charge (including shipping and handling) upon request.
+  > If you fail to comply, permission is revoked. AS IS, no warranty.
 
-### LIRC (Linux Infrared Remote Control)
+- **Previous incorrect claim removed:** Earlier version described IRDB as "CC0 / public domain" — **incorrect**, removed everywhere per review finding. Source of incorrect claim was secondary blog `infishark.com` [2](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices) which described IRDB as public domain; primary LICENSE.md contradicts that.
 
-- **Source:** `lirc.org`, database `lirc-remotes` SourceForge, GitHub mirror `probonopd/lirc-remotes` [2](https://github.com/probonopd/lirc-remotes)
-- **License:** GPL (tool) + database contributions mixed, but remotes database is collected definitions used in LIRC [4](https://sourceforge.net/projects/lirc-remotes/)
-- **Format:** LIRC config files, convertible to Pronto Hex and Protocol/Device/Subdevice/Function via `lirc2xml` [2](https://github.com/probonopd/lirc-remotes)
-- **Overlap:** Many databases overlap, none comprehensive [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
+- **Obligations for Greenfield4 V1:**
+  1. Open issue on irdb repo before product use — low effort, compatible with open development.
+  2. Include attribution notice in product (e.g., About screen) — compatible with premium UX if placed in settings/about.
+  3. Provide up to three fully licensed copies/units on request — for free app, providing Play Store access or APK satisfies; for future hardware, shipping cost must be budgeted. Not onerous but must be tracked as legal obligation.
+
+- **Access recommendation from primary README:** Do not bundle whole DB, access dynamically at runtime via CDN (e.g., `https://cdn.jsdelivr.net/gh/probonopd/irdb@master/codes/...`) to benefit from updates [VERIFIED gh api readme content].
+
+- **Acceptability for V1:** **Conditionally acceptable** with obligations tracked. Not CC0, but custom permissive with attribution and notification. Requires product owner to approve obligations and ensure attribution UI and issue-notification process exists. Alternative: avoid bundling, use runtime CDN access to reduce license surface.
+
+### LIRC (Linux Infrared Remote Control) remote database
+
+- **Source:** `lirc-remotes` SourceForge, GitHub mirror `probonopd/lirc-remotes` [VERIFIED gh api repos/probonopd/lirc-remotes]
+- **Primary README:** "The LIRC remote configurations project" — imported from SourceForge, manages config files, no license stated in README [VERIFIED fetch_page raw.githubusercontent.com/probonopd/lirc-remotes/master/README.md]
+- **GitHub license field:** `null` [VERIFIED gh api repos/probonopd/lirc-remotes --jq .license] — no explicit license detected via API.
+- **LIRC software license:** GPL-2.0-or-later for tools like lirc-config-tool [VERIFIED web_search lirc.org/html/lirc-config-tool.html] and for `aldebaran/lirc` GPL-2.0 [VERIFIED gh api search]. However, **database/config files licensing cannot be inferred from software license** per review finding.
+- **Config file header example (secondary):** Example config from lirc docs contains "# Please make this file available to others by sending it to ..." suggesting intent to share, but not a formal license [VERIFIED web_search lirc.readthedocs.io].
+- **Status:** **Unresolved** — no authoritative license file found for the database/config data itself in primary sources reachable via allowlisted egress. Must remain unresolved until primary license file located or contributor terms clarified. Do not use as legally cleared.
 
 ### Other sources
 
-- WinLIRC, Pronto databases — varying formats [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
-- Commercial: Crestron, Control4 maintain private DBs, more coverage in pro AV, but consumer TV coverage comparable to open-source [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
+- WinLIRC, Pronto databases — varying formats, licensing not verified in this session [INFERRED from earlier secondary source, now marked secondary].
+- Commercial: Crestron, Control4 private DBs — more coverage in pro AV, but licensing commercial, not evaluated [SECONDARY ESTIMATE from infishark blog, not primary].
 
-## Quality and coverage
+## Quality and coverage — secondary estimates
 
-- **Estimated coverage:** ~80-85% of TVs currently in use worldwide have IR codes in major databases [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
-- **Long-tail problem:** Remaining 15-20% is hundreds of millions devices, disproportionately in markets with less open-source hardware community [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
-- **How codes added:**
-  - Manufacturer documentation (Sony SIRC, Denon/Marantz tables) — authoritative [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
-  - IR capture from original remote — dominant method, requires hardware like BLEShark Nano IR receiver [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
-  - OEM cross-referencing: rebadged OEM products share codes (e.g., Hisense TV under house brand) [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
+- **Previous claim:** ">500,000 codes, >10,000 brands, 80-85% TV coverage" — source was secondary blog `infishark.com` [2](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices), not primary IRDB repo. Primary IRDB README describes itself as "one of the largest" but does not list exact counts [VERIFIED gh api readme].
+- **Correction:** Treat size/coverage numbers as **secondary estimates with uncertainty**, not verified facts. Label as [SECONDARY ESTIMATE] and do not embed in fixed PRODUCT.md constraints.
+- **How codes added (secondary estimate from same blog):** manufacturer docs (Sony SIRC, Denon/Marantz) authoritative, IR capture dominant, OEM cross-referencing rebadged products [SECONDARY ESTIMATE].
+- **Quality risks (inference):** captured codes may be incomplete, format conversion timing errors, community contributions vary. Mitigation per PRODUCT.md: verify via user flow, select profile with best demonstrated coverage.
 
-**Quality risks:**
-- Captured codes may be incomplete (only power + volume captured, not full set).
-- Pronto vs LIRC format conversion can introduce timing errors.
-- No central validation; community contributions vary in quality.
-
-**Mitigation per PRODUCT.md:**
-- "A profile is selected from demonstrated command behavior, not merely from a database label." (DOMAIN.md IR profile invariant)
-- Verify simple commands with user, don't blindly transmit every code.
-- Select profile with best demonstrated coverage when multiple partly work.
-
-## Matching strategy (for V1)
+## Matching strategy (for V1) — unchanged, but licensing-aware
 
 Per PRODUCT.md power/failure and DOMAIN.md:
 
-1. **Phone capability detection:** Check if Android device exposes IR hardware (ConsumerIrManager). If not, IR capability is hidden — meets "Built-in IR is a V1 capability only where the phone exposes suitable hardware."
-2. **Candidate profiles:** From IRDB/LIRC, filter by brand/model if user provides, otherwise by brand family. Use OEM cross-reference to expand candidates.
-3. **Verification flow (user-facing):**
-   - Ask user to point phone at TV (IR requires line-of-sight, unlike network).
-   - Transmit likely profile's Power or Volume (low-risk commands first).
-   - Ask "Did TV respond?" — user confirms.
-   - If yes, verify 2-3 more important commands (Power, Volume Up/Down, Mute) to compute coverage score.
-   - If multiple profiles partly work, select one with best demonstrated coverage.
-   - Store selected profile as "IR profile" entity with source + verified coverage, per DOMAIN.md.
-4. **No blind transmit:** Never iterate through every known code automatically — violates PRODUCT.md.
-5. **Hybrid control:** One visible remote may combine transports: e.g., network for app launch/text, IR for power when network wake fails. User doesn't manage transports separately.
+1. **Phone capability detection:** Check ConsumerIrManager; if absent, hide IR.
+2. **Candidate profiles:** If using IRDB, prefer runtime CDN access per primary README recommendation, not full bundling, to benefit from updates and reduce license bundling surface. Filter by brand/model, OEM cross-reference.
+3. **Verification flow:** Ask user to point phone at TV, transmit low-risk command (Power/Volume), ask "Did TV respond?", verify 2-3 more commands, compute coverage score, select best demonstrated coverage, store as IR profile entity with source + verified coverage.
+4. **No blind transmit:** Never iterate every known code automatically.
+5. **Hybrid control:** One visible remote may combine transports.
 
-## Device coverage for V1
+## Device coverage for V1 — revised
 
-- Target: cover Samsung and LG TVs via IR as fallback for power when WoL fails or TV is off-network.
-- IRDB contains Samsung and LG codes (verified via LIRC remotes list includes lg, samsung entries [3](https://gist.github.com/francis2110/8f69843dd57ae07dce80) — gist references remotecentral, lirc-remotes, remotecodelist, harctoolbox as sources).
-- Coverage for Samsung/LG expected >90% within IRDB due to brand popularity; long-tail brands deferred.
+- Target: Samsung and LG TVs via IR fallback for power when WoL fails.
+- **Previous claim:** IRDB contains Samsung and LG codes verified via LIRC list [SECONDARY]. Now marked as secondary estimate: LIRC remotes list includes lg, samsung entries via gist referencing remotecentral, lirc-remotes, remotecodelist, harctoolbox [SECONDARY], not primary verification of IRDB contents.
+- **Revised:** Expected coverage for Samsung/LG via IRDB is **inferred** from brand popularity, not verified from primary index. Must be validated via real hardware or direct CDN index check (`https://cdn.jsdelivr.net/gh/probonopd/irdb@master/codes/index`).
 
-## Licensing and provenance rule compliance
+## Licensing and provenance rule compliance — corrected
 
-- IRDB CC0/public domain — suitable for V1, no attribution burden beyond documentation, but should credit Global Cache + community.
-- LIRC GPL — using database entries (facts about IR timing) is generally considered data, not code, but tool GPL must be respected; prefer IRDB for licensing simplicity.
-- Uploaded universal-remote ZIPs mentioned in PRODUCT.md research provenance rule are evidence only, not requirements — IRDB/LIRC research does not rely on them.
-- Must not commit IR codes as secrets; IR codes are public facts, not credentials.
+- **IRDB:** Custom permission, not CC0. Obligations: notify via GitHub issue, include attribution notice, provide up to 3 copies on request. Must be tracked as legal obligation, not public domain.
+- **LIRC DB:** Licensing unresolved; do not treat as legally cleared via GPL. Leave unresolved.
+- **Uploaded ZIPs:** Evidence only per PRODUCT.md provenance rule.
+- IR codes are public facts, not credentials, but database compilation has licensing.
 
 ## Release criteria for IR
 
-- **Tested:** IR profile verified on real hardware with user confirmation flow, at least 2 models per brand if possible.
-- **Expected:** Profile from IRDB/LIRC that matches brand family but not yet verified via user flow.
-- **Unsupported:** No profile found, or phone lacks IR hardware — UI explains limitation clearly rather than promising impossible behavior (per PRODUCT.md power/failure).
+- **Tested:** IR profile verified on real hardware with user confirmation flow.
+- **Expected:** Profile from IRDB (accessed via CDN) that matches brand family but not yet verified via user flow.
+- **Unsupported:** No profile found or phone lacks IR hardware.
 
-## Open questions for architecture
+## Open questions
 
-- Which Android IR API (ConsumerIrManager) versions to support? Need to check Android API level.
-- How to store IR profile selection securely? Not secret, but part of remembered device.
-- How to handle phones without IR? Hide IR capability, rely on network + WoL.
-
-These are architecture questions, not discovery blockers.
+- IRDB: Does CDN runtime access count as "accessing database over network" under license? Yes, license explicitly allows accessing over network, with same obligations.
+- LIRC: Need primary license file for config data.
+- Coverage stats need primary authoritative source or hardware validation.
 
 ## References
 
-- IRDB overview [1](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices)
-- LIRC remotes DB [2](https://github.com/probonopd/lirc-remotes), [4](https://sourceforge.net/projects/lirc-remotes/)
-- LIRC code references [3](https://gist.github.com/francis2110/8f69843dd57ae07dce80)
+- IRDB primary LICENSE.md [VERIFIED fetch_page raw.githubusercontent.com/probonopd/irdb/master/LICENSE.md]
+- IRDB primary README [VERIFIED gh api repos/probonopd/irdb/readme]
+- LIRC remotes mirror README [VERIFIED fetch_page raw.githubusercontent.com/probonopd/lirc-remotes/master/README.md], license null [VERIFIED gh api]
+- LIRC software license GPL-2.0-or-later example [VERIFIED web_search lirc.org/html/lirc-config-tool.html]
+- Previous secondary source that gave incorrect CC0 claim: infishark blog [SECONDARY ESTIMATE]

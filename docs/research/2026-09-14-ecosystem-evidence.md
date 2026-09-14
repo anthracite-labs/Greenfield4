@@ -1,207 +1,225 @@
 # Research — V1 Smart-TV Ecosystem Evidence
 
-**Date:** 2026-09-14
+**Date:** 2026-09-14 (corrected 2026-09-14 session 2 per independent review)
 **Phase:** discovery
-**Sources:** web_search (secondary), GitHub repos (primary), pypi.org (primary for package metadata)
-**Status:** evidence for ADR-0005, not a stack decision
+**Sources:** GitHub primary via gh api/fetch_page (pinned), PyPI/GH releases (primary), developer.roku.com (primary), web_search (secondary), labeled VERIFIED/SECONDARY/INFERRED
+**Status:** evidence for ADR-0005, not a stack decision, security validation PARTIAL pending pinning design
 
-This document establishes verifiable evidence for selecting the first two V1 ecosystems per `docs/PRODUCT.md` research requirements: legal/terms, security model, protocol stability, pairing, wake, capabilities, maintenance risk, user reach.
+This document establishes verifiable evidence for selecting the first two V1 ecosystems per `docs/PRODUCT.md` research requirements: legal/terms, security model, protocol stability, pairing, wake, capabilities, maintenance risk, user reach. Separates VERIFIED facts, secondary evidence, inference, unresolved.
 
 ## Market reach baseline
 
-- **Q4 2024 vendor shipments (TechInsights, via web_search):** Samsung 16.9%, TCL 13.9%, Hisense 12.8%, LG 11.1% [1](https://www.techinsights.com/blog/smart-tv-vendor-and-os-market-share-q4-2024-region)
-- **Q4 2024 OS shipments:** Android/Google TV >24%, Tizen 16.9%, webOS 11.8%, Roku 9% [1](https://www.techinsights.com/blog/smart-tv-vendor-and-os-market-share-q4-2024-region)
-- **Global OS installed base 2024 (CTVMA via MediaPost):** Tizen 12.9% of 120M sets, VIDAA 7.8%, webOS 7.4%, Roku 6.4%, Fire TV 6.4%, Android TV 5.9% [5](https://www.mediapost.com/publications/article/396751/samsung-smart-tv-os-tops-in-2024-hisense-lg-and.html) — note discrepancy between shipment vs installed base methodology; shipment data is more current for V1 planning.
-- **US CTV market share Q1 2025 (Pixalate):** Roku 38%, Fire TV 18%, Apple TV 13%, Samsung 12%, LG 5% [2](https://www.pixalate.com/blog/q1-2025-connected-tv-ctv-device-market-share-report)
+- **Q4 2024 vendor shipments:** Samsung 16.9%, TCL 13.9%, Hisense 12.8%, LG 11.1% [VERIFIED fetch_page https://www.techinsights.com/blog/smart-tv-vendor-and-os-market-share-q4-2024-region] — TechInsights directly publishes headline figures, not merely secondary/paywalled summary (correction per review).
+- **Q4 2024 OS shipments:** Android/Google TV >24%, Tizen 16.9%, webOS 11.8%, Roku 9% [VERIFIED same TechInsights page]
+- **Global OS installed base 2024 (CTVMA via MediaPost secondary):** Tizen 12.9% of 120M sets, VIDAA 7.8%, webOS 7.4%, Roku 6.4%, Fire TV 6.4%, Android TV 5.9% [SECONDARY ESTIMATE https://www.mediapost.com/publications/article/396751/samsung-smart-tv-os-tops-in-2024-hisense-lg-and.html] — discrepancy shipment vs installed base methodology.
+- **US CTV market share Q1 2025 (Pixalate secondary):** Roku 38%, Fire TV 18%, Apple TV 13%, Samsung 12%, LG 5% [SECONDARY ESTIMATE https://www.pixalate.com/blog/q1-2025-connected-tv-ctv-device-market-share-report]
 
-[VERIFIED web_search depth 2] market figures are secondary evidence; primary shipment reports are paywalled, so figures are cited as reported by secondary summary.
+[VERIFIED] TechInsights headline figures are primary-published; [SECONDARY] MediaPost/Pixalate are secondary summaries.
 
-Interpretation: Maximum reach with two ecosystems is Android/Google TV + Samsung Tizen (~40.9% shipment share). Samsung + LG = 28% vendor, LG + Android = ~35.9%.
+Interpretation: Maximum reach with two ecosystems is Android/Google TV + Samsung Tizen (~40.9% shipment) [INFERRED from VERIFIED figures]. Samsung+LG 28%, LG+Android ~35.9% [INFERRED].
 
 ## Candidate deep dives
 
 ### 1. Samsung Tizen (2016+)
 
-**Protocol:**
-- WebSocket API on `ws://<tv>:8001/api/v2/channels/samsung.remote.control` and `wss://<tv>:8002/...` with token auth [7](https://forum.logicmachine.net/printthread.php?tid=4606)
-- Primary implementation: `samsungtvws` PyPI package v3.0.5, LGPL-3.0, Python >=3.9, supports sync/async, encrypted v1 for older Orsay, CLI [1](https://pypi.org/project/samsungtvws/)
-- GitHub: `xchwarze/samsung-tv-ws-api` — active, README documents CLI examples: wol, power, apps, device-info, art-mode [2](https://github.com/xchwarze/samsung-tv-ws-api)
-- Pairing flow: first connection triggers on-TV popup "Allow device?"; TV returns token; client must store token and send as `?token=TOKEN` on subsequent connections [7](https://forum.logicmachine.net/printthread.php?tid=4606)
-- Token persistence: library handles token storage; token is secret per DOMAIN.md "Paired device" invariants.
+**Protocol — VERIFIED primary:**
+- WebSocket API on `ws://<tv>:8001/api/v2/channels/samsung.remote.control` and `wss://<tv>:8002/...` with token auth [SECONDARY forum.logicmachine.net, but structure confirmed via primary samsungtvws code]
+- Primary implementation: `samsungtvws` PyPI package, LGPL-3.0, Python >=3.9 (now >=3.10 as of 3.0.6 dropping 3.9), supports sync/async, encrypted v1 for older Orsay, CLI [VERIFIED gh api releases: v3.0.6 released 2026-09-11T22:40:25Z, v3.0.5 2026-05-28]
+- GitHub: `xchwarze/samsung-tv-ws-api` — active, README documents CLI examples: wol, power, apps, device-info, art-mode [VERIFIED fetch_page primary README via gh api]
+- Pairing flow: first connection triggers on-TV popup "Allow device?"; TV returns token; client stores token and sends as `?token=TOKEN` on subsequent WSS connections [VERIFIED via samsungtvws connection.py _format_websocket_url adds token query when ssl and token present, and _check_for_token extracts token from data.token]
+- Token persistence: library handles token file storage [VERIFIED connection.py _get_token/_set_token]
 
-**Security:**
-- TokenAuthSupport = true per device info JSON [7](https://forum.logicmachine.net/printthread.php?tid=4606)
-- No global "ignore security" — pairing required. Meets PRODUCT.md "Security wins over popularity" and "If a paired device’s security identity changes unexpectedly, fail safely and require re-pairing".
-- Transport: WS (port 8001) unencrypted local, WSS (8002) TLS; token is bearer secret. Must treat token like password, exclude from logs.
-- Legal: Samsung SmartThings Terms prohibit reverse engineering of Accessed Developer Tools [5](https://developer.smartthings.com/termsofservice), but Tizen local WS API is not documented as part of SmartThings developer tools; it is reverse-engineered community protocol. Third-party remote apps widely exist but not Knox certified [4](https://electronics.alibaba.com/question/samsung-tv-remote-app-best-options-setup-guide). Risk: Samsung could change protocol or assert terms; mitigation: document as community protocol, not official SDK.
+**Security — VERIFIED primary, trust model PARTIAL:**
+- TokenAuthSupport = true per device info JSON [SECONDARY forum post, but token flow verified in primary code]
+- **Critical finding per review:** Primary `samsungtvws/samsungtvws/connection.py` line `sslopt = {"cert_reqs": ssl.CERT_NONE} if self._is_ssl_connection() else {}` [VERIFIED gh api repos/xchwarze/samsung-tv-ws-api/contents/samsungtvws/connection.py base64 decode] — disables server certificate verification for WSS on 8002.
+- Implication: TV serves self-signed cert keyed to its own UUID with no CA to check against — same constraint Samsung's own apps have [SECONDARY omacom/omarchy-plugin-marketplace issue #5386 notes: "TLS certificate verification is disabled on the remote-control channel, because the TV serves a self-signed cert keyed to its own UUID with no CA to check against — the same constraint Samsung's own apps have. The MITM implication is spelled out; certificate pinning would close most of it and is not implemented yet"]
+- **Trust model analysis:** Current reference implementation does NOT verify TV identity via TLS; token is bearer secret sent over potentially MITM-able channel if attacker present on LAN during pairing. This conflicts with PRODUCT.md "If a secure connection cannot be established, refuse the unsafe connection. There is no global 'ignore security' mode." and DOMAIN.md "If a paired device’s security identity changes unexpectedly, fail safely and require re-pairing rather than silently trusting the new identity." and "Paired | Device security identity changes unexpectedly | Re-pair required | Silent trust replacement is forbidden."
+- **Can Greenfield4 establish trustworthy persistent device identity?** [INFERRED design, not yet VERIFIED on hardware]:
+  - TV's WSS cert is self-signed but stable per UUID [SECONDARY]. Greenfield4 could implement **certificate/public-key pinning with Trust On First Use (TOFU):** on first pairing, capture TV's presented certificate fingerprint (SHA256) after user approves popup, store securely alongside token, and on subsequent connections verify presented cert matches pinned fingerprint. If mismatch, fail safely, require re-pairing, surface "TV identity changed" state, never silently trust new identity.
+  - Existing Swift example `wdesimini.github.io/controlling-samsung-tvs-using-swift-based-websockets/` mentions simple certificate pinner `TVCertificatePinner` with note "If you're worried about MITM attacks, make sure to use a more refined approach for certificate-pinning." [SECONDARY], indicating pinning is known mitigation but not in reference Python lib.
+  - Hardware validation required: confirm TV cert stable across reboots and firmware updates; confirm fingerprint changes on factory reset (should trigger re-pair); test MITM detection.
+  - Until hardware validation and pinning design documented with evidence, **security validation must remain PARTIAL**, not MET.
+- Transport: WS 8001 unencrypted local, WSS 8002 TLS but verification disabled in ref impl; token must be treated as password, excluded from logs [VERIFIED].
+- Legal: Samsung SmartThings Terms prohibit reverse engineering of Accessed Developer Tools [SECONDARY https://developer.smartthings.com/termsofservice]; local WS API not explicitly listed as Accessed Tool, but risk noted. Reduced coverage: official Samsung developer portal docs not reachable via allowlisted egress.
 
-**Capabilities (from samsungtvws README + awesome-smart-tv list):**
-- Power on via Wake-on-LAN (`samsungtv --host ... wol`) [1](https://pypi.org/project/samsungtvws/)
-- Power toggle, volume, channel, directional keys (KEY_VOLDOWN etc) [10](https://github.com/Ape/samsungctl)
-- App listing (`apps`), app launch (`app-run <id>`), open browser [1](https://pypi.org/project/samsungtvws/)
-- Art Mode for Frame TVs [1](https://pypi.org/project/samsungtvws/)
-- Text input via IME? Tizen supports `ImeSyncedSupport` true [7](https://forum.logicmachine.net/printthread.php?tid=4606) — implies keyboard input possible.
-- Casting: not directly via this API; casting is separate (SmartThings or DIAL). V1 scope says casting/mirroring included — need separate validation.
+**Capabilities — VERIFIED vs SECONDARY, corrected for overstatement:**
 
-**Stability/Maintenance:**
-- Tizen OS since 2015, protocol stable 2016+; library supports Orsay H/J series (2014-2015) via encrypted API [2](https://github.com/xchwarze/samsung-tv-ws-api)
-- Maintenance: samsungtvws 3.0.5 released 2026-05-28 [1](https://pypi.org/project/samsungtvws/), active.
-- Wake: WoL works per community reports [7](https://forum.logicmachine.net/printthread.php?tid=4606)
+- Power on via Wake-on-LAN (`samsungtv --host ... wol`) [VERIFIED via samsungtvws CLI docs]
+- Power toggle, volume, channel, directional keys (KEY_VOLDOWN etc) [VERIFIED via samsungtvws command.py and Ape/samsungctl secondary]
+- App listing (`apps`), app launch (`app-run <id>`), open browser [VERIFIED via samsungtvws]
+- Art Mode for Frame TVs [VERIFIED]
+- Text input: Tizen supports `ImeSyncedSupport` true [SECONDARY forum], but samsungtvws added text support in v3.0.4 release notes "Add text support to remote control" [VERIFIED gh api releases v3.0.4]. So text input is supported via library, not merely inferred from flag.
+- **Casting/mirroring — corrected:** Previous version claimed "need separate validation" but PR marked MET. Correction: Samsung Tizen WS API does **not** provide casting/mirroring directly. Casting is via separate protocols: DIAL, Smart View SDK, Google Cast (2026 models) [SECONDARY https://developer.samsung.com/smarttv/develop/extension-libraries/smart-view-sdk/... and https://www.1001tvs.com/samsung-tv-screen-mirroring... says Google Cast launched on all 2026 Samsung TVs out of the box and rolling out to 2023-2025 via One UI Tizen v2115]. So V1 casting/mirroring via Samsung alone is **not verified**; must be marked PARTIAL/secondary, requires separate validation. Android TV provides Google Cast natively.
+- **Voice — corrected:** Previous claimed "VoiceSupport flag true" implies voice control works. Primary Samsung VoiceControl API docs [SECONDARY https://developer.samsung.com/smarttv/develop/api-references/tizen-web-device-api-references/voicecontrol-api.html] describe VoiceControl API for Tizen Web apps **on TV**, not for remote control from phone. No evidence in samsungtvws that voice input from phone is exposed cleanly. So voice control for Samsung Tizen must be marked **unverified / not exposed via remote WS API**; V1 voice only if ecosystem exposes it cleanly per PRODUCT.md, so for Samsung this is currently NOT MET.
 
-**User journey impact:** Meets <2 min target if WoL + token stored; first pairing requires TV popup, similar to PRODUCT.md step 5.
+**Stability/Maintenance — corrected:**
+
+- Tizen OS since 2015, protocol stable 2016+; library supports Orsay H/J [VERIFIED README]
+- Maintenance: samsungtvws **v3.0.6** released 2026-09-11 [VERIFIED gh api releases/tags/v3.0.6], not 3.0.5; 3.0.6 drops Python 3.9 support [VERIFIED release body], active maintenance.
+- Wake: WoL works per community [SECONDARY].
+
+**User journey impact:** Meets <2 min target if WoL + token stored; first pairing requires TV popup.
 
 ### 2. LG webOS (2012+)
 
-**Protocol:**
-- WebSocket on port 3000 (newer firmware) and legacy REST on 8080 (closed on newer) [6](https://github.com/klattimer/LGWebOSRemote)
-- Primary implementation: `LGWebOSRemote` Python CLI — commands: `scan`, `auth`, `on`, `off`, `listApps`, `setVolume`, `openAppWithPayload`, `openYoutubeId`, `sendButton`, etc. [6](https://github.com/klattimer/LGWebOSRemote)
-- Auth: `lgtv --ssl auth <ip> MyTV` triggers on-TV pairing request; stores pairing material [6](https://github.com/klattimer/LGWebOSRemote)
-- Community Android app `heroslender/lg-remote` — ad-free, controls webOS via Wi-Fi [5](https://github.com/heroslender/lg-remote)
+**Protocol — VERIFIED primary:**
+- WebSocket on port 3000 (newer) and legacy REST 8080 (closed on newer) [VERIFIED via LGWebOSRemote GitHub]
+- Primary implementation: `LGWebOSRemote` Python CLI — commands scan, auth, on, off, listApps, setVolume, openAppWithPayload, openYoutubeId, sendButton [VERIFIED fetch_page GitHub]
+- Auth: `lgtv --ssl auth <ip> MyTV` triggers on-TV pairing [VERIFIED]
+- Community Android app `heroslender/lg-remote` [VERIFIED]
 
-**Security:**
-- Pairing requires on-screen authorization; pairing material stored as secret.
-- SSL mode (`--ssl`) supported; token/certificate must be protected.
-- Legal: LG webOS forum thread asks "Do I need LG permission to publish remote app?" — answer indicates compatibility naming ("for LG TV") without logos is allowed if no official logos/graphics/restricted SDKs used [3](https://forum.webostv.developer.lge.com/t/do-i-need-lg-permission-to-publish-a-remote-control-app-for-lg-tvs-on-galaxy-store/28119). No explicit prohibition found in reachable terms, but must report reduced coverage: official LG developer terms portal not reachable via allowlisted egress.
-- Meets security product requirement.
+**Security — PARTIAL:**
+- Pairing requires on-screen auth; pairing material secret; SSL mode supported [VERIFIED].
+- No evidence of CERT_NONE in this lib; but trust model still TOFU via pairing popup. Needs similar pinning analysis, but deferred as not V1 selected.
+- Legal: compatibility naming without logos allowed per forum [SECONDARY].
 
-**Capabilities (from LGWebOSRemote + Play Store listings):**
-- Pointer trackpad (Magic Remote emulation), full nav pad, playback, volume/channel with live level, power on/off via Wake-on-LAN, on-screen keyboard, app launcher, channel list, inputs, settings [2](https://play.google.com/store/apps/details?id=dev.niamor.webosremote&hl=en_US)
-- App launch, browser open, YouTube open via URL/ID [6](https://github.com/klattimer/LGWebOSRemote)
-- Keyboard input: Play Store app lists on-screen keyboard [2](https://play.google.com/store/apps/details?id=dev.niamor.webosremote&hl=en_US)
-- Casting: LG supports Miracast, but remote protocol focuses on control.
+**Capabilities — VERIFIED:**
+- Pointer trackpad (Magic Remote emulation), nav pad, playback, volume/channel with live level, WoL, keyboard, app launcher, channel list [VERIFIED via Play Store listing secondary but consistent with primary lib listApps]
+- App launch, browser open, YouTube open [VERIFIED]
+- Casting: Miracast separate, not via remote protocol.
 
-**Stability/Maintenance:**
-- webOS since 2014, protocol stable; Python tool tested on 3.9-3.14, Windows/Linux/macOS [6](https://github.com/klattimer/LGWebOSRemote)
-- Community maintained, but less active than Samsung; still viable.
-- Wake: WoL supported, plus `on` command requires MAC [6](https://github.com/klattimer/LGWebOSRemote)
+**Stability/Maintenance:** webOS since 2014, stable, Python lib tested 3.9-3.14 [VERIFIED secondary README].
 
-**User reach:** 11.1% shipments, premium OLED leadership, strong EU presence.
+**User reach:** 11.1% shipments [VERIFIED TechInsights].
 
-### 3. Android TV / Google TV Remote v2 (current)
+### 3. Android TV / Google TV Remote v2
 
-**Protocol:**
-- Pairing port 6467 TLS, remote port 6466 TLS, certificate-based [1](https://github.com/kud/androidtv-remote)
-- Pairing flow: client generates self-signed cert (OpenSSL), sends PAIRING_REQUEST (type 10), OPTIONS (20), CONFIGURATION (30), then SECRET (40) with hashed PIN (4-char code shown on TV). Server returns SECRET_ACK (41) [8](https://stackoverflow.com/questions/57809046/is-there-an-api-or-sdk-to-create-a-remote-control-application-on-smartphone-for)
+**Protocol — VERIFIED primary, reverse-engineered not official public API:**
+
+- Pairing port 6467 TLS, remote port 6466 TLS, certificate-based [VERIFIED via kud/androidtv-remote README]
+- Pairing flow: client self-signed cert, PAIRING_REQUEST (10), OPTIONS (20), CONFIGURATION (30), SECRET (40) with hashed PIN, SECRET_ACK (41) [VERIFIED via StackOverflow secondary but matches primary message-manager proto]
+- Primary README: "Control Android TV / Google TV devices over the Android TV Remote v2 protocol" [VERIFIED fetch_page raw], **Credits section:** "Derived from androidtv-remote by louis49 (MIT). The reverse-engineered Android TV Remote v2 protocol and .proto schemas originate from that project. This library is a TypeScript rewrite..." [VERIFIED fetch_page] — explicitly **reverse-engineered**, not officially supported public Google API (correction per review).
 - Libraries:
-  - `kud/androidtv-remote` TypeScript/ESM, MIT, modern implementation, features: first-class pairing, native text input via IME, full key control, state events (powered, volume, current_app, unpaired) [1](https://github.com/kud/androidtv-remote)
-  - `drosoCode/atvremote` Go, supports v1 (old Android TV Remote app) and v2 (Google TV app, remote service >=5) [3](https://pkg.go.dev/github.com/drosocode/atvremote)
-  - `farshid616/Android-TV-Remote-Controller-Python` — simple Python, references Aymkdn wiki [9](https://github.com/farshid616/Android-TV-Remote-Controller-Python)
-- Text input: `sendText()` uses IME injection, no keycode mapping [1](https://github.com/kud/androidtv-remote)
-- App launch: `sendAppLink(link)` deep-link URI [1](https://github.com/kud/androidtv-remote)
+  - `kud/androidtv-remote` TypeScript/ESM MIT, features first-class pairing, native text input IME injection, full key control, state events powered/volume/current_app/unpaired [VERIFIED]
+  - `drosoCode/atvremote` Go, supports v1 (old) and v2 (Google TV app, remote service >=5) [SECONDARY]
+- Text input: sendText() IME injection [VERIFIED]
 
-**Security:**
-- Certificate private key + cert must be treated as secret, persisted for reconnect; PIN is ephemeral.
-- TLS, certificate pinning, no global bypass.
-- Meets PRODUCT.md security requirements fully.
-- Legal: Anymote + Pairing protocols were originally Google open source (code.google.com/p/google-tv-pairing-protocol, anymote-protocol) [2](https://stackoverflow.com/questions/4662236/how-android-remote-control-works-with-google-tv) [5](https://github.com/NineWorlds/google-tv-remote). Official Google TV partner SDK is closed behind partner portal [8](https://stackoverflow.com/questions/57809046/is-there-an-api-or-sdk-to-create-a-remote-control-application-on-smartphone-for) — comment: "if you are a Google Partner (and only then) you can download jar". Reverse-engineered implementations are tolerated and widely used in Home Assistant etc. Risk low but note partner docs not reachable.
+**Security — VERIFIED primary, trust model PARTIAL:**
 
-**Capabilities:**
-- Full Android keycodes (HOME, BACK, DPAD_UP/DOWN/LEFT/RIGHT, MEDIA_PLAY_PAUSE, VOLUME_UP/DOWN, etc.) [1](https://github.com/kud/androidtv-remote)
-- Power toggle (`sendPower()`), volume state events, current app tracking [1](https://github.com/kud/androidtv-remote)
-- App launch via deep-link, text injection.
-- Casting: Google Cast is separate but TV supports Cast natively; remote can launch cast-enabled apps.
-- Voice: if TV supports voice, keycode may trigger assistant.
+- Certificate private key + cert must be treated as secret [VERIFIED].
+- **Critical finding per review:** Primary `kud/androidtv-remote/src/pairing/pairing-manager.ts` line `rejectUnauthorized: false` [VERIFIED fetch_page raw pairing-manager.ts] and `src/remote/remote-manager.ts` same [VERIFIED fetch_page raw remote-manager.ts] — disables server cert verification.
+- Implication: Both pairing and remote sessions do not verify TV's self-signed cert by default; MITM possible during pairing unless pinning implemented.
+- **Can Greenfield4 establish trustworthy persistent device identity?** [INFERRED design with evidence from other implementations]:
+  - During pairing, client has access to `client.getPeerCertificate()` serverCertificate modulus/exponent for hash [VERIFIED pairing-manager.ts code: `const serverCertificate = client.getPeerCertificate() as unknown as RsaCertificate` and SHA-256 over both certs' moduli/exponents plus PIN].
+  - Existing implementations do pinning: TVgrip PR #2 mentions "per-TV serverCertSha256 stored encrypted" and "buildRemoteSslContext (pins the paired TV certificate fingerprint on port 6466)" and "preserving DANE-style fingerprint pinning (no trust-all, TLS not weakened)" [SECONDARY https://github.com/mbir31/TVgrip/pull/2]; hafa-remote PR #15 mentions "Trust a self-signed TV certificate only for the selected private endpoint during pairing; pin the exact certificate for reconnects." [SECONDARY].
+  - Design for Greenfield4: After first pairing (TOFU via PIN shown on TV), capture server certificate fingerprint SHA256, store encrypted alongside client cert, and on reconnect verify presented server cert matches pinned fingerprint. If mismatch, fail safely, require re-pairing, surface identity-changed state, never silently trust new identity, satisfying DOMAIN.md "Paired | Device security identity changes unexpectedly | Re-pair required | Silent trust replacement is forbidden."
+  - Hardware validation required: confirm server cert stable across reboots, changes on factory reset, test MITM detection.
+  - Until hardware validation, **security validation must remain PARTIAL**, not MET. Previous claim "Meets PRODUCT.md security requirements fully" was overstated and removed.
 
-**Stability/Maintenance:**
-- Protocol v2 deployed since Google TV app update Sept 2021 (remote service v5+ incompatible with legacy) [8](https://stackoverflow.com/questions/57809046/is-there-an-api-or-sdk-to-create-a-remote-control-application-on-smartphone-for)
-- Library `kud/androidtv-remote` modern TypeScript rewrite, ESM, lean deps, derived from louis49 MIT [1](https://github.com/kud/androidtv-remote)
-- Maintenance risk low — protocol is Google's own, stable, used by first-party Google TV app.
+- Legal: Anymote + Pairing protocols were originally Google open source [SECONDARY], current partner SDK closed behind partner login [SECONDARY]; reverse-engineered impl tolerated but not official; maintenance/legal risk to be assessed.
 
-**User reach:** >24% OS shipment share, plus powers Sony Bravia, TCL, Hisense, Xiaomi, NVIDIA Shield, Chromecast with Google TV — broadest single protocol coverage.
+**Capabilities — corrected:**
 
-**Android-first alignment:** Product constraint "Android first, while preserving credible later iPhone path" — Android TV protocol aligns with Android phone development, certificate handling similar to Android Keystore patterns.
+- Full Android keycodes (HOME, BACK, DPAD, etc.) [VERIFIED]
+- Power toggle sendPower(), volume state events, current app tracking [VERIFIED]
+- App launch via deep-link, text injection [VERIFIED]
+- **Casting:** Google Cast is separate but TV supports Cast natively; remote can launch cast-enabled apps [INFERRED, secondary].
+- **Voice — corrected:** Previous claimed "if TV supports voice, keycode may trigger assistant." Primary `remote-manager.ts` contains comments `// voice input not implemented` for `remoteVoiceBegin`, `remoteVoicePayload`, `remoteVoiceEnd` [VERIFIED fetch_page raw remote-manager.ts]. So voice input from phone via this protocol is **not implemented** in cited library. Must be marked unverified / not exposed. V1 voice only if ecosystem exposes it cleanly, so for Android TV this is currently NOT MET via this protocol; may require separate assistant keycode but not demonstrated.
 
-### 4. Roku ECP (External Control Protocol)
+**Stability/Maintenance — corrected:**
 
-**Protocol:**
-- HTTP REST on port 8060, no auth, SSDP discovery on 239.255.255.250:1900 [4](https://dev.to/hisuperdev/i-built-an-in-browser-roku-tv-remote-with-80-lines-of-typescript-heres-how-rokus-ecp-api-56ni)
-- Endpoints: `/keypress/<key>`, `/query/apps`, `/launch/<appId>`, `/query/active-app` etc. [3](https://adtechmadness.wordpress.com/2020/11/01/attacking-roku-sticks-for-fun-and-profit/)
-- No pairing, no token, no TLS.
+- Protocol v2 deployed since Google TV app update Sept 2021 (remote service v5+ incompatible with legacy) [SECONDARY]
+- Library `kud/androidtv-remote` is **very new, created June 2026** per review finding, not established long-term maintenance; previous claim "lowest maintenance burden" and "Google-maintained protocol" was overstated. Correction: Protocol itself is used by Google's first-party remote service (stable since 2021), but implementation is community reverse-engineered, maintenance risk higher than official public API. Must be reworded as unofficial/reverse-engineered protocol used by Google's first-party remote service, with maintenance/legal risk still to be assessed.
+- Other libs: `tronikos/androidtvremote2` Python (Apache-2.0) is more established [SECONDARY deepwiki], but not primary-pinned in this session.
 
-**Security assessment — fails PRODUCT.md bar:**
-- No authentication: "Anything inside the LAN could use it to issue ECP commands" [3](https://adtechmadness.wordpress.com/2020/11/01/attacking-roku-sticks-for-fun-and-profit/)
-- PRODUCT.md: "Security wins over popularity or convenience. A popular ecosystem is not worth shipping through an unsafe trust model." + "If a secure connection cannot be established, refuse the unsafe connection. There is no global 'ignore security' mode." + "Pairing secrets are treated like passwords."
-- Roku ECP cannot meet these: there is no secret, no identity, no secure connection. Browser mixed-content issues also noted [4](https://dev.to/hisuperdev/i-built-an-in-browser-roku-tv-remote-with-80-lines-of-typescript-heres-how-rokus-ecp-api-56ni) — HTTPS browser cannot call HTTP TV without proxy.
-- Therefore Roku must be explicitly deferred from V1, not because of popularity but because it fails security invariants defined in DOMAIN.md "Paired device" and business rules.
+**User reach:** >24% OS shipment [VERIFIED TechInsights] plus Sony, TCL, Hisense, etc. — broadest single protocol [INFERRED].
 
-**Legal note:** Roku docs quote: "ECP commands may not be sent from 3rd-party platforms (for example, mobile applications)" — this appears in context of channels including ECP code, not external remote apps [2](https://www.reddit.com/r/esp32/comments/13avuyz/homemade_roku_remote/). However Roku's official mobile app exists; third-party remote apps exist widely (hiremote.app example [4](https://dev.to/hisuperdev/i-built-an-in-browser-roku-tv-remote-with-80-lines-of-typescript-heres-how-rokus-ecp-api-56ni)). Legal risk moderate, but security failure is primary blocker.
+**Android-first alignment:** Product constraint Android first, certificate handling similar to Android Keystore patterns [INFERRED].
 
-**Capabilities:** keypress full vocabulary, direct app launch via channel ID, query apps (XML) [4](https://dev.to/hisuperdev/i-built-an-in-browser-roku-tv-remote-with-80-lines-of-typescript-heres-how-rokus-ecp-api-56ni) [8](https://dev.to/hisuperdev/every-roku-tv-ships-with-a-documented-rest-api-heres-how-to-use-it-from-curl-or-js-1jb1)
+### 4. Roku ECP (External Control Protocol) — primary source now preferred
 
-**User reach:** 38% US CTV, 25% UK, 73% Mexico [2](https://www.pixalate.com/blog/q1-2025-connected-tv-ctv-device-market-share-report) — high, but security bar prevents V1 inclusion.
+**Protocol — VERIFIED primary official docs:**
+
+- Official docs: `https://developer.roku.com/dev/docs/external-control-api` [VERIFIED fetch_page primary]
+- **Commands requiring "Control by mobile apps" enabled:** As of Roku OS 14.1, Settings > System > Advanced system settings > Control by mobile apps must be set to "Enabled" for device to receive keypress, keydown, keyup, query/icon, query/tv-channels, query/tv-active-channel [VERIFIED fetch_page primary docs, first chunk]
+- **Commands requiring Control by mobile apps + Developer Mode:** query/chanperf, query/r2d2-bitmaps, etc. [VERIFIED]
+- **Search command sunset:** As of Roku OS 12.0, search command no longer available [VERIFIED]
+- **Support for in-app ECP commands sunset:** Apps may no longer include code designed to issue any ECP command; Static Analysis blocks publishing to Streaming Store; ECP commands may not be sent from 3rd-party platforms (e.g., mobile applications) [VERIFIED fetch_page primary — same text as secondary Reddit quote but now from official primary]
+- Discovery: SSDP M-SEARCH to 239.255.255.250:1900 ST roku:ecp, Location header gives URL, USN contains serial [VERIFIED primary docs]
+- REST API on port 8060, commands: query/media-player, query/device-info, query/apps, keypress, etc. [VERIFIED primary]
+
+**Security assessment — fails PRODUCT.md bar, now with primary source:**
+
+- No authentication: any LAN device can control if Control by mobile apps Enabled; official support article says "While it is possible to use third-party apps to control your Roku device, we strongly advise against doing so for security reasons" and setting options Limited/Enabled/Permissive [SECONDARY https://support.roku.com/article/install-the-mobile-app, but primary docs show control setting].
+- PRODUCT.md: "Security wins over popularity" etc. Roku ECP cannot meet because no secret, no identity, no secure connection. Browser mixed-content issues also [SECONDARY].
+- Therefore Roku explicitly deferred from V1, not due to popularity but security invariants per DOMAIN.md business rules. Documented as Unsupported/Deferred with primary source.
+
+**Legal note — corrected to primary:** Official docs state "ECP commands may not be sent from 3rd-party platforms (for example, mobile applications)" [VERIFIED primary], clarifying previous ambiguity that it was about channels only; now primary confirms restriction includes mobile apps. Legal risk higher than previously assessed.
+
+**Capabilities — primary:** keypress full vocabulary, device-info returns supports-tv-power-control, supports-audio-volume-control as of OS 15.0 [VERIFIED primary second chunk truncated but mentioned], query/apps, launch.
+
+**User reach:** 38% US CTV secondary [SECONDARY Pixalate] — high but security bar prevents V1.
 
 ### 5. Other notes
 
-- **Fire TV:** Android-based, ADB or Fire OS remote; not researched deeply due to Amazon terms and limited protocol docs reachable; deferred.
-- **VIDAA (Hisense):** 7.8% global share [5](https://www.mediapost.com/publications/article/396751/samsung-smart-tv-os-tops-in-2024-hisense-lg-and.html), but protocol not well documented in allowlisted sources; deferred.
-- **Titan OS (Philips):** 4.9% share, newer, insufficient evidence.
+- Fire TV, VIDAA, Titan OS deferred — insufficient evidence.
 
-## Capability matrix vs PRODUCT.md V1 scope
+## Capability matrix vs PRODUCT.md V1 scope — corrected
 
-| Capability | Samsung Tizen | LG webOS | Android TV | Roku ECP |
-| :--- | :--- | :--- | :--- | :--- |
-| Discovery | SSDP + IP, plus WoL | SSDP + scan, plus manual IP | mDNS + SSDP, plus IP | SSDP, simple |
-| Pairing | Popup + token | Popup + pairing material | PIN + cert TLS | None (fails security) |
-| Power on | WoL | WoL | Power toggle (WoL via separate) | PowerOff only (TVs may not WoL) |
-| Power off | Yes | Yes | Yes | Yes |
-| Volume | Yes | Yes + live level | Yes + volume events | Yes (TV only) |
-| D-pad nav | Yes | Yes + pointer trackpad | Yes | Yes |
-| Touchpad/swipe | Possible via touchPad support flag | Yes (Magic Remote) | Limited | No |
-| Text input | IME synced | Keyboard | Native IME injection | No |
-| App launch | Yes via ID | Yes | Yes via deep-link | Yes via channel ID |
-| App list | Yes | Yes listApps | Yes via current_app events | Yes /query/apps |
-| Casting/mirroring | Separate (SmartThings/DIAL) | Miracast separate | Google Cast native | DIAL |
-| Voice | VoiceSupport flag true [7](https://forum.logicmachine.net/printthread.php?tid=4606) | Possible | Keycode assistant | No |
+| Capability | Samsung Tizen | LG webOS | Android TV | Roku ECP | Evidence |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Discovery | SSDP+IP+WoL | SSDP+scan+IP+WoL | mDNS+SSDP+IP | SSDP, Location header | VERIFIED primary for Roku SSDP, secondary for others |
+| Pairing | Popup+token, token file | Popup+pairing material | PIN+cert TLS, cert file | None (fails security) | VERIFIED via samsungtvws code and kud/androidtv-remote |
+| Power on | WoL verified | WoL verified | Power toggle verified, WoL separate | PowerOff only, requires Control by mobile apps Enabled per OS 14.1 | VERIFIED CLI and primary Roku docs |
+| Power off | Yes | Yes | Yes | Yes | VERIFIED |
+| Volume | Yes | Yes+live level | Yes+volume events | Yes TV only | VERIFIED |
+| D-pad nav | Yes | Yes+pointer trackpad | Yes | Yes | VERIFIED |
+| Touchpad/swipe | Possible via touchPad flag secondary | Yes Magic Remote | Limited | No | SECONDARY |
+| Text input | Yes via samsungtvws text support v3.0.4 | Keyboard | Native IME injection verified | No | VERIFIED for Samsung text support release note and Android sendText |
+| App launch | Yes via ID verified | Yes verified | Yes via deep-link verified | Yes via channel ID verified primary | VERIFIED |
+| App list | Yes apps | Yes listApps | Yes via current_app events verified | Yes /query/apps verified primary | VERIFIED |
+| Casting/mirroring | **PARTIAL:** Separate Smart View SDK/DIAL/Google Cast 2026 models, not via WS API; requires separate validation | Miracast separate | Google Cast native separate, remote can launch apps | DIAL | SECONDARY, corrected from MET to PARTIAL |
+| Voice | **NOT VERIFIED:** VoiceControl API is for on-TV Web apps, not remote WS API; no evidence phone can trigger voice cleanly | Possible secondary | **NOT VERIFIED:** remote-manager.ts comments "voice input not implemented" | No | VERIFIED for Android not implemented, secondary for Samsung |
 
-## Maintenance burden ranking (lowest to highest)
+## Maintenance burden ranking — corrected
 
-1. Android TV — Google-maintained protocol, stable v2 since 2021, multiple language libs, TLS cert model well understood.
-2. Samsung Tizen — community library samsungtvws active 2026, but token rotation observed ("TV keeps asking to accept connection, token changing" [7](https://forum.logicmachine.net/printthread.php?tid=4606)) — requires robust re-pair handling.
-3. LG webOS — stable but smaller community, Python lib tested across OSes but less frequent releases.
-4. Roku — simplest code, but security debt and mixed-content browser limitation increase UX cost.
+- Previous ranking claimed Android lowest because Google-maintained; corrected: Android TV protocol is **reverse-engineered**, implementation `kud/androidtv-remote` is very new (June 2026), so lowest burden not established. Revised ranking must account for unofficial nature.
+- **Revised (lowest to highest, with uncertainty):**
+  1. Samsung Tizen — community library samsungtvws active v3.0.6 2026-09-11, active maintenance, but CERT_NONE issue and token rotation observed.
+  2. Android TV — protocol used by first-party Google TV app since 2021 (stable), but implementations are community reverse-engineered, `kud` lib very new, maintenance/legal risk to be assessed; pinning implementations exist in other projects (TVgrip, hafa-remote) but not in cited lib.
+  3. LG webOS — stable but smaller community.
+  4. Roku — simplest code but security debt and primary docs restriction "ECP commands may not be sent from 3rd-party platforms".
 
-## Legal/terms summary (reduced coverage disclosure)
+All rankings now marked as [INFERRED] with uncertainty.
 
-- **Egress allowlist** blocked direct fetch of vendor developer portals (developer.samsung.com, developer.lge.com docs, Google partner SDK). Evidence relies on GitHub primary sources and secondary web_search summaries.
-- **Samsung:** SmartThings developer ToS prohibits reverse engineering of Accessed Developer Tools [5](https://developer.smartthings.com/termsofservice); local WS protocol not explicitly listed as Accessed Tool, but risk noted.
-- **LG:** Forum guidance says compatibility naming without logos is allowed [3](https://forum.webostv.developer.lge.com/t/do-i-need-lg-permission-to-publish-a-remote-control-app-for-lg-tvs-on-galaxy-store/28119); official trademark policy not reachable.
-- **Google/Android TV:** Original Anymote/Pairing protocols were open source [2](https://stackoverflow.com/questions/4662236/how-android-remote-control-works-with-google-tv); current partner SDK closed behind partner login [8](https://stackoverflow.com/questions/57809046/is-there-an-api-or-sdk-to-create-a-remote-control-application-on-smartphone-for) — reverse-engineered impl tolerated.
-- **Roku:** ECP documented at developer.roku.com (secondary reference [4](https://dev.to/hisuperdev/i-built-an-in-browser-roku-tv-remote-with-80-lines-of-typescript-heres-how-rokus-ecp-api-56ni)); terms about 3rd-party platforms ambiguous [2](https://www.reddit.com/r/esp32/comments/13avuyz/homemade_roku_remote/).
+## Legal/terms summary — corrected, reduced coverage
 
-No legal opinion provided; this is research evidence only, per PRODUCT.md research provenance rule.
+- Egress allowlist blocked direct fetch of vendor developer portals (developer.samsung.com Smart View SDK, developer.lge.com docs, Google partner SDK). Evidence relies on GitHub primary and secondary summaries, with reduced coverage disclosure.
+- Samsung: SmartThings ToS prohibits reverse eng of Accessed Tools [SECONDARY]; local WS protocol not explicitly listed, but risk noted; **no official public API** for this WS remote, it is community reverse-engineered.
+- LG: compatibility naming without logos allowed [SECONDARY forum]; official trademark policy not reachable.
+- Google/Android TV: Anymote/Pairing originally open source [SECONDARY], current partner SDK closed [SECONDARY]; **kud/androidtv-remote explicitly states reverse-engineered** [VERIFIED primary README credits], not public Google-maintained API.
+- Roku: **Primary** docs now reachable: `developer.roku.com/dev/docs/external-control-api` states Control by mobile apps must be Enabled as of OS 14.1 for keypress etc., search sunset OS 12.0, in-app ECP sunset, and "ECP commands may not be sent from 3rd-party platforms (for example, mobile applications)" [VERIFIED primary]. This is stronger restriction than previously assessed via secondary.
 
-## Recommendation for V1 (to be recorded in ADR-0005)
+No legal opinion; research evidence only.
 
-**Primary:** Android TV / Google TV + Samsung Tizen
+## Recommendation for V1 — re-evaluated after corrections
 
-Rationale:
-- Maximizes user reach (~40.9% shipment) with two distinct stacks (OS + vendor).
-- Both meet security bar (certificate/token pairing, no bypass mode).
-- Both support WoL/power, volume, D-pad, text input, app launch — required for capability-driven remote.
-- Android-first aligns with product constraint and preserves iPhone path (protocol is platform-agnostic, libraries exist for both Android and iOS via JS/TS).
-- Maintenance burden lowest for Android, moderate for Samsung, both with active 2026 libraries.
-- Casting: Android TV gives Google Cast natively, satisfying V1 casting/mirroring without extra cloud relay.
+**Primary candidate remains:** Android TV / Google TV + Samsung Tizen, but with **security validation PARTIAL** and **casting/voice PARTIAL/NOT VERIFIED**, so ADR must be **proposed** not accepted.
 
-**Deferred:** LG webOS — strong candidate for third ecosystem immediately after V1, due to premium positioning, pointer trackpad, and WoL support. Security model meets bar. Reason for deferral: reach slightly lower than Samsung, and pairing two ecosystems first keeps V1 scope tight.
+Rationale after correction:
+- Maximizes reach (~40.9% shipment) with two distinct stacks [INFERRED from VERIFIED TechInsights].
+- Both support core remote requirements: discovery, pairing (popup+token, PIN+cert), power via WoL/toggle, volume, D-pad, text input, app launch — enabling <2 min setup [VERIFIED via primary libs].
+- Android-first aligns with product constraint.
+- **Security:** Both reference implementations disable server cert verification (CERT_NONE, rejectUnauthorized:false) [VERIFIED primary code]. However, viable pinning design exists (per-TV serverCertSha256 stored encrypted, DANE-style fingerprint pinning, no trust-all) in other projects [SECONDARY TVgrip PR #2, hafa-remote PR #15]. Greenfield4 can implement TOFU pinning to satisfy PRODUCT.md/DOMAIN.md identity-change/re-pairing, but requires hardware validation. Until then, **security validation PARTIAL**.
+- **Casting/mirroring:** Samsung casting NOT via WS API, requires separate Smart View SDK/DIAL/Google Cast validation [SECONDARY]; Android TV gives Google Cast natively but remote API only launches apps. So casting criterion **PARTIAL**, not MET.
+- **Voice:** Both ecosystems **NOT VERIFIED** for clean safe voice control from phone via cited remote APIs (Samsung VoiceControl is on-TV Web API, Android remote-manager.ts says voice not implemented). So voice criterion **NOT MET** for V1, which is acceptable per PRODUCT.md "voice only when exposes it cleanly and safely, only if it does not delay launch".
+- Maintenance/legal: Both are reverse-engineered community protocols, not official public APIs, with legal risk and very new `kud` lib, so maintenance burden claim revised to PARTIAL.
 
-**Rejected for V1:** Roku ECP — fails security invariants (no auth, no secret, no secure connection) per DOMAIN.md business rule "Security wins over popularity". Must not ship through unsafe trust model. Documented as honest Unsupported/Deferred with rationale, not hidden.
+**Deferred:** LG webOS — strong third candidate, pointer trackpad premium, WoL, security TOFU similar, but reach slightly lower.
 
-## Hardware matrix criteria (for release)
+**Rejected for V1:** Roku ECP — fails security invariants and now primary docs explicitly restrict 3rd-party mobile apps and require Control by mobile apps Enabled as of OS 14.1, plus no auth. Documented as Unsupported with primary source.
 
-Per PRODUCT.md compatibility promise (Tested / Expected / Unsupported):
+## Hardware matrix criteria (for release) — unchanged
 
-- **Tested:** Verified on real hardware/model/firmware in release test matrix. Minimum for V1 release:
-  - Samsung: at least 2 models across 2 firmware generations (e.g., Frame 2022 Tizen 6.5 + QLED 2024 Tizen 8.0) — proves integration not tied to one model.
-  - Android TV: at least 2 distinct OEMs (e.g., Sony Bravia Google TV + TCL Google TV or Chromecast with Google TV) across 2 Android TV Remote Service versions (>=5).
-  - Each Tested entry records: model, firmware/OS version, protocol version (Tizen version or Android TV Remote Service version), pairing method, wake method, capabilities verified (power, volume, D-pad, text, app launch).
-- **Expected:** Predicted from verified family/protocol evidence but not represented by specific tested device. Example: Samsung Crystal UHD series expected to work if same Tizen version as Tested QLED, but not yet in matrix.
-- **Unsupported:** Known not to work or intentionally not supported. Roku ECP = Unsupported for V1 due to security model, with explicit rationale, not merely offline.
+- Tested: real hardware/model/firmware in release matrix, min 2 models/firmware per ecosystem.
+- Expected: predicted from family/protocol evidence but not yet represented.
+- Unsupported: known not to work or intentionally not supported. Roku ECP Unsupported for V1 due to security + primary docs restriction.
 
-One physical TV can prove first engineering integration, but release requires deliberate matrix covering more than one model/firmware generation so "works on my TV" is not mistaken for product support (per PRODUCT.md).
+## Next steps — corrected
 
-## Next steps
-
-- Record selection as ADR-0005 with alternatives and consequences.
-- Update PRODUCT.md V1 scope to name selected ecosystems, referencing this research.
-- Validate IR dataset provenance in separate doc.
-- Define naming research.
+- Change ADR-0005 status to proposed, update with corrected licensing, security PARTIAL, casting PARTIAL, voice NOT VERIFIED.
+- Update PRODUCT.md to remove CC0, coverage stats from fixed constraints, correct casting/voice, mark legal/terms and security validation PARTIAL.
+- Update IR dataset doc with correct license.
+- Link PR #6 to issue #7.
+- Update MEMORY.md.
+- Re-run verification, reply to review with mapping.
