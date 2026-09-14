@@ -160,3 +160,57 @@ move to architecture until the product definition is reviewed.
 **ADR:** docs/decisions/0005-v1-ecosystem-selection.md (proposed)
 **PR:** #6
 **Issue:** #7
+
+## 2026-09-14 — Discovery governance fix: proposed candidates, IR candidate sources, TOFU candidate mitigation, no invented approval (session 3)
+
+**Context:** Branch `arena/01a0a053-greenfield4`, PR #6 second independent review CHANGES_REQUESTED at head 9f26651, Issue #7 open, no product-owner approval in durable GitHub record. Objective per user: correct remaining governance, product-state, security, licensing inconsistencies, do not merge, leave PR open for re-review. Follow .ecc/BOOTSTRAP.md.
+
+**Did:**
+- Inspected Issue #7 durable record: created by arena-ai-coding-agent[bot], open, zero comments/reactions, no product-owner approval. Determined explicit product-owner approval does NOT exist — do not invent, keep ADR-0005 proposed, describe Android TV/Google TV + Samsung Tizen only as current proposed/leading candidates, not fixed/accepted/complete.
+- **PRODUCT.md governance:**
+  - Removed Android TV/Samsung Tizen from Fixed V1 constraints as fixed requirement; reworded to "V1 will support two evidence-selected ecosystems, current proposed/leading candidates per ADR-0005 proposed are Android TV + Samsung Tizen — not fixed/accepted pending explicit product-owner approval and security validation".
+  - Built-in phone IR kept as fixed capability; IRDB and LIRC treated as candidate/evaluated data sources not fixed shipping dependencies while legal status unresolved/conditional; IRDB requires product-owner/legal acceptance still pending.
+  - V1 scope reworded to proposed candidates, not fixed selection, with PARTIAL security pending trustworthy identity analysis.
+  - Compatibility promise reworded to proposed candidates.
+  - Research checklist: "Choose first two ecosystems" changed from [x] done to [ ] PARTIAL/proposed, explicitly noting product-owner approval does not exist in durable record (Issue #7 open, no approval), preserving distinction between product-direction approval (pending) and unresolved security/legal validation (PARTIAL). IR validation updated to note LIRC not approved as shipping source, IRDB requires product-owner/legal acceptance pending, runtime CDN does not remove obligations because license covers network access.
+- **ADR-0005 governance:**
+  - Title updated to "(proposed candidates)", Date corrected session 3.
+  - Deciders field corrected to reflect actual durable approval record: discovery research session + independent review feedback; explicitly states product-owner approval does NOT exist (Issue #7 open, zero comments/reactions, no approval), product owner not listed as decider for proposed state.
+  - Context updated to note governance per BOOTSTRAP.md hard rule 4 (approved issue + ADR required for durable product requirements), and that Issue #7 lacks approval so ADR remains proposed and PRODUCT.md must describe as proposed candidates.
+  - Decision status remains proposed because (1) no product-owner approval, (2) security trust model PARTIAL.
+  - Consequences Negative rewritten to separated trust analysis, candidate mitigation not demonstrated, first-use MITM resistance:
+    - Samsung: token flow not cryptographically bound to TLS cert, first-use MITM resistance unresolved, TOFU pinning candidate mitigation only protects subsequent connections.
+    - Android TV: pairing-manager.ts SHA-256 over client/server cert moduli/exponents + PIN VERIFIED primary, providing stronger binding, but first-use trust still TOFU and persistence needs verification; pinning candidate mitigation, not demonstrated, must not be generalized from Samsung or third-party projects.
+  - Follow-ups updated to require explicit product-owner approval before treating as fixed, and separated Samsung vs Android TV first-use trust analysis with hardware validation.
+- **IR data-source state:**
+  - IRDB: retained exact primary-license obligations verbatim, removed unsupported interpretation that Play Store access or APK satisfies up to three copies obligation; stated only what license requires, operational consequence requires product-owner/legal confirmation.
+  - Clarified runtime CDN access recommended by README for updateability but does not remove obligations because license explicitly covers network access.
+  - LIRC: remains unresolved, not approved as shipping source.
+  - Matching strategy and licensing compliance sections updated to candidate/evaluated sources.
+- **Ecosystem evidence doc:**
+  - Samsung security section rewritten to separated analysis, candidate mitigation not demonstrated, first-use MITM unresolved, no generalization from other ecosystems.
+  - Android TV security section rewritten to separated analysis, verified primary code showing hash binding cert material + PIN, candidate mitigation not demonstrated, first-use trust analysis, hardware validation required.
+  - Recommendation section re-evaluated separating VERIFIED facts, secondary evidence, inference, proposed design, unresolved questions, product-owner decisions; governance note added.
+  - Next steps updated to reflect session 3 requirements.
+- **Decisions index:** Title updated to proposed candidates, date session 3.
+- **Plans:** Existing plan docs remain, new corrections covered by this entry and docs/plans/discovery-correction-session2.md plus this session's work.
+
+**Verified:**
+- `bash scripts/verify.sh` → to be run in this session (pending), expected PASS 15 passed 0 failed 3 skipped per previous runs; no app stack artifacts, secrets, links resolve.
+- Spec review: Issue #7 fetched fresh via gh issue view, no product-owner approval found in durable record (Issue #7 open, zero comments/reactions, no approval), so governance corrections applied.
+- Security review: separated trust analysis, candidate mitigation wording, first-use MITM unresolved for Samsung, Android TV binding verified but persistence unresolved, no new deps, no secrets.
+- No product-owner approval invented; recorded only approval actually present (none).
+- PROJECT_PHASE=discovery, ALLOW_APP_STACK=0 unchanged, no app stack introduced.
+
+**Learned:**
+- Issue #7 has no product-owner approval in durable GitHub record — created by bot, open, no comments. BOOTSTRAP hard rule 4 requires approved issue before introducing fixed product requirements, so PRODUCT.md must not treat proposed candidates as fixed constraints.
+- IRDB license wording "up to three fully licensed copies/units" must be quoted verbatim without interpretation; CDN access does not remove obligations because LICENSE.md covers both include and network access.
+- Samsung token flow does not cryptographically bind TLS cert — token bearer secret sent over WSS with CERT_NONE, first-use MITM resistance unresolved. Android TV PIN pairing hash does bind cert material (client modulus/exponent + server modulus/exponent + PIN) VERIFIED primary, providing stronger first-use binding but still TOFU and requires persistence validation.
+- TOFU pinning must be described as candidate mitigation, not demonstrated solution, and must not be generalized across ecosystems; TVgrip PR #2 and hafa-remote PR #15 are secondary viability patterns for Android TV protocol, not proof for Samsung.
+- State consistency requires PRODUCT.md, ADR-0005, research docs, decisions index, MEMORY.md, Issue #7 conformance, PR body all tell same story distinguishing VERIFIED facts, secondary, inference, proposed design, unresolved, product-owner decisions.
+
+**Next:**
+- Run `bash scripts/verify.sh` + spec/code/security review passes via .ecc/skills/INDEX.md, push corrected branch, update PR #6 body with governance fix and Closes #7, respond to latest independent review with concise finding→change/evidence mapping, leave PR open for ChatGPT independent re-review. If Issue #7 still lacks product-owner approval after corrections, leave ecosystem choice proposed and report approval as remaining human action.
+**ADR:** docs/decisions/0005-v1-ecosystem-selection.md (proposed)
+**PR:** #6
+**Issue:** #7 (open, no approval)

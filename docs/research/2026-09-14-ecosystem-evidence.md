@@ -29,16 +29,19 @@ Interpretation: Maximum reach with two ecosystems is Android/Google TV + Samsung
 - Pairing flow: first connection triggers on-TV popup "Allow device?"; TV returns token; client stores token and sends as `?token=TOKEN` on subsequent WSS connections [VERIFIED via samsungtvws connection.py _format_websocket_url adds token query when ssl and token present, and _check_for_token extracts token from data.token]
 - Token persistence: library handles token file storage [VERIFIED connection.py _get_token/_set_token]
 
-**Security — VERIFIED primary, trust model PARTIAL:**
+**Security — VERIFIED primary, trust model PARTIAL — Samsung Tizen separated analysis:**
+
 - TokenAuthSupport = true per device info JSON [SECONDARY forum post, but token flow verified in primary code]
 - **Critical finding per review:** Primary `samsungtvws/samsungtvws/connection.py` line `sslopt = {"cert_reqs": ssl.CERT_NONE} if self._is_ssl_connection() else {}` [VERIFIED gh api repos/xchwarze/samsung-tv-ws-api/contents/samsungtvws/connection.py base64 decode] — disables server certificate verification for WSS on 8002.
 - Implication: TV serves self-signed cert keyed to its own UUID with no CA to check against — same constraint Samsung's own apps have [SECONDARY omacom/omarchy-plugin-marketplace issue #5386 notes: "TLS certificate verification is disabled on the remote-control channel, because the TV serves a self-signed cert keyed to its own UUID with no CA to check against — the same constraint Samsung's own apps have. The MITM implication is spelled out; certificate pinning would close most of it and is not implemented yet"]
-- **Trust model analysis:** Current reference implementation does NOT verify TV identity via TLS; token is bearer secret sent over potentially MITM-able channel if attacker present on LAN during pairing. This conflicts with PRODUCT.md "If a secure connection cannot be established, refuse the unsafe connection. There is no global 'ignore security' mode." and DOMAIN.md "If a paired device’s security identity changes unexpectedly, fail safely and require re-pairing rather than silently trusting the new identity." and "Paired | Device security identity changes unexpectedly | Re-pair required | Silent trust replacement is forbidden."
-- **Can Greenfield4 establish trustworthy persistent device identity?** [INFERRED design, not yet VERIFIED on hardware]:
-  - TV's WSS cert is self-signed but stable per UUID [SECONDARY]. Greenfield4 could implement **certificate/public-key pinning with Trust On First Use (TOFU):** on first pairing, capture TV's presented certificate fingerprint (SHA256) after user approves popup, store securely alongside token, and on subsequent connections verify presented cert matches pinned fingerprint. If mismatch, fail safely, require re-pairing, surface "TV identity changed" state, never silently trust new identity.
-  - Existing Swift example `wdesimini.github.io/controlling-samsung-tvs-using-swift-based-websockets/` mentions simple certificate pinner `TVCertificatePinner` with note "If you're worried about MITM attacks, make sure to use a more refined approach for certificate-pinning." [SECONDARY], indicating pinning is known mitigation but not in reference Python lib.
-  - Hardware validation required: confirm TV cert stable across reboots and firmware updates; confirm fingerprint changes on factory reset (should trigger re-pair); test MITM detection.
-  - Until hardware validation and pinning design documented with evidence, **security validation must remain PARTIAL**, not MET.
+- **Trust model analysis — Samsung specific:**
+  - Current reference implementation does NOT verify TV identity via TLS; token is bearer secret returned in `data.token` after on-TV popup approval [VERIFIED connection.py _check_for_token] and sent as `?token=TOKEN` on subsequent WSS connections [VERIFIED _format_websocket_url]. No cryptographic binding of observed TLS certificate to token or to physical TV identity is shown in primary code — token is not a function of cert material.
+  - **First-use trust:** On first pairing, user approves popup on physical TV (proximity proof), but TLS cert is not verified and not cryptographically bound to token. Therefore first-use MITM resistance is **unresolved**: attacker on LAN during first pairing could present different self-signed cert, intercept token, and impersonate TV. This conflicts with PRODUCT.md "If a secure connection cannot be established, refuse the unsafe connection. There is no global 'ignore security' mode." and DOMAIN.md "If a paired device’s security identity changes unexpectedly, fail safely and require re-pairing rather than silently trusting the new identity." and "Paired | Device security identity changes unexpectedly | Re-pair required | Silent trust replacement is forbidden."
+- **Candidate mitigation — NOT demonstrated satisfying design, TOFU only protects subsequent connections:**
+  - TV's WSS cert is self-signed but stable per UUID [SECONDARY, not VERIFIED on hardware]. As **candidate mitigation**, Greenfield4 could implement certificate/public-key pinning with Trust On First Use (TOFU): on first pairing, capture TV's presented certificate fingerprint (SHA256) after user approves popup, store securely alongside token, and on subsequent connections verify presented cert matches pinned fingerprint. If mismatch, fail safely, require re-pairing, surface "TV identity changed" state, never silently trust new identity. This would protect subsequent connections only; first connection remains TOFU without authentication.
+  - Existing Swift example `wdesimini.github.io/controlling-samsung-tvs-using-swift-based-websockets/` mentions simple certificate pinner `TVCertificatePinner` with note "If you're worried about MITM attacks, make sure to use a more refined approach for certificate-pinning." [SECONDARY], indicating pinning is known mitigation but not in reference Python lib. Evidence from other ecosystems (TVgrip PR #2, hafa-remote PR #15) must NOT be generalized to Samsung; they are cited only as secondary examples of pinning pattern, not proof for Samsung protocol.
+  - Hardware validation required: confirm TV cert stable across reboots and firmware updates; confirm fingerprint changes on factory reset (should trigger re-pair); test MITM detection; confirm no stable device identity other than cert exists.
+  - Until hardware validation and first-use binding analysis completed, **security validation must remain PARTIAL**, not MET. Pinning is candidate mitigation, not demonstrated solution.
 - Transport: WS 8001 unencrypted local, WSS 8002 TLS but verification disabled in ref impl; token must be treated as password, excluded from logs [VERIFIED].
 - Legal: Samsung SmartThings Terms prohibit reverse engineering of Accessed Developer Tools [SECONDARY https://developer.smartthings.com/termsofservice]; local WS API not explicitly listed as Accessed Tool, but risk noted. Reduced coverage: official Samsung developer portal docs not reachable via allowlisted egress.
 
@@ -94,18 +97,20 @@ Interpretation: Maximum reach with two ecosystems is Android/Google TV + Samsung
   - `drosoCode/atvremote` Go, supports v1 (old) and v2 (Google TV app, remote service >=5) [SECONDARY]
 - Text input: sendText() IME injection [VERIFIED]
 
-**Security — VERIFIED primary, trust model PARTIAL:**
+**Security — VERIFIED primary, trust model PARTIAL — Android TV Remote v2 separated analysis:**
 
 - Certificate private key + cert must be treated as secret [VERIFIED].
-- **Critical finding per review:** Primary `kud/androidtv-remote/src/pairing/pairing-manager.ts` line `rejectUnauthorized: false` [VERIFIED fetch_page raw pairing-manager.ts] and `src/remote/remote-manager.ts` same [VERIFIED fetch_page raw remote-manager.ts] — disables server cert verification.
-- Implication: Both pairing and remote sessions do not verify TV's self-signed cert by default; MITM possible during pairing unless pinning implemented.
-- **Can Greenfield4 establish trustworthy persistent device identity?** [INFERRED design with evidence from other implementations]:
-  - During pairing, client has access to `client.getPeerCertificate()` serverCertificate modulus/exponent for hash [VERIFIED pairing-manager.ts code: `const serverCertificate = client.getPeerCertificate() as unknown as RsaCertificate` and SHA-256 over both certs' moduli/exponents plus PIN].
-  - Existing implementations do pinning: TVgrip PR #2 mentions "per-TV serverCertSha256 stored encrypted" and "buildRemoteSslContext (pins the paired TV certificate fingerprint on port 6466)" and "preserving DANE-style fingerprint pinning (no trust-all, TLS not weakened)" [SECONDARY https://github.com/mbir31/TVgrip/pull/2]; hafa-remote PR #15 mentions "Trust a self-signed TV certificate only for the selected private endpoint during pairing; pin the exact certificate for reconnects." [SECONDARY].
-  - Design for Greenfield4: After first pairing (TOFU via PIN shown on TV), capture server certificate fingerprint SHA256, store encrypted alongside client cert, and on reconnect verify presented server cert matches pinned fingerprint. If mismatch, fail safely, require re-pairing, surface identity-changed state, never silently trust new identity, satisfying DOMAIN.md "Paired | Device security identity changes unexpectedly | Re-pair required | Silent trust replacement is forbidden."
-  - Hardware validation required: confirm server cert stable across reboots, changes on factory reset, test MITM detection.
-  - Until hardware validation, **security validation must remain PARTIAL**, not MET. Previous claim "Meets PRODUCT.md security requirements fully" was overstated and removed.
-
+- **Critical finding per review:** Primary `kud/androidtv-remote/src/pairing/pairing-manager.ts` line `rejectUnauthorized: false` [VERIFIED fetch_page raw pairing-manager.ts] and `src/remote/remote-manager.ts` same [VERIFIED fetch_page raw remote-manager.ts] — disables server cert verification in reference implementation.
+- Implication: Both pairing and remote sessions do not verify TV's self-signed cert by default via CA; MITM possible unless additional binding exists.
+- **Trust model analysis — Android TV specific, cryptographic binding present:**
+  - During pairing, client has access to `client.getPeerCertificate()` serverCertificate modulus/exponent for hash [VERIFIED primary pairing-manager.ts: `const clientCertificate = client.getCertificate() as RsaCertificate` and `const serverCertificate = client.getPeerCertificate() as unknown as RsaCertificate` and SHA-256 over both certs' moduli/exponents plus PIN: `sha256.update(Buffer.from(clientCertificate.modulus, "hex"))`, `clientCertificate.exponent`, `serverCertificate.modulus`, `serverCertificate.exponent`, `code`]. Code then checks `hashArray[0] !== codeBytes[0]` and sends `createPairingSecret(hashArray)` [VERIFIED].
+  - This shows PIN pairing computation **cryptographically binds client and server certificate material plus PIN** — stronger than Samsung token flow. User sees PIN on physical TV screen (proximity proof), enters on phone; hash includes server cert modulus/exponent, so MITM presenting different cert would cause hash mismatch unless attacker also controls PIN derivation. However first-use trust still depends on user verifying PIN on physical TV and no prior trust anchor; persistence of server cert identity for reconnect must be verified separately.
+  - **First-use trust:** PIN shown on TV provides physical presence, and hash binds server cert to PIN, providing some MITM resistance, but still TOFU in sense that no CA anchors TV identity beforehand. If attacker is on LAN during pairing and can intercept and forward PIN flow, analysis of whether binding prevents MITM must be proven with protocol spec and hardware validation — currently **PARTIAL**, not fully demonstrated.
+  - **Candidate mitigation — NOT demonstrated satisfying design, TOFU protects subsequent connections:**
+    - As candidate mitigation, after first pairing (TOFU via PIN shown on TV), capture server certificate fingerprint SHA256 via `getPeerCertificate`, store encrypted alongside client cert, and on reconnect verify presented server cert matches pinned fingerprint. If mismatch, fail safely, require re-pairing, surface identity-changed state, never silently trust new identity, satisfying DOMAIN.md "Paired | Device security identity changes unexpectedly | Re-pair required | Silent trust replacement is forbidden."
+    - Existing implementations do pinning: TVgrip PR #2 mentions "per-TV serverCertSha256 stored encrypted" and "buildRemoteSslContext (pins the paired TV certificate fingerprint on port 6466)" and "preserving DANE-style fingerprint pinning (no trust-all, TLS not weakened)" [SECONDARY https://github.com/mbir31/TVgrip/pull/2]; hafa-remote PR #15 mentions "Trust a self-signed TV certificate only for the selected private endpoint during pairing; pin the exact certificate for reconnects." [SECONDARY]. These are secondary evidence of viability pattern for this same protocol, but must be verified on Greenfield4 hardware and not generalized from Samsung evidence.
+    - Hardware validation required: confirm server cert stable across reboots, changes on factory reset (should trigger re-pair), test MITM detection, confirm what identity can safely be persisted for reconnect (cert fingerprint, public key hash, etc.).
+    - Until hardware validation and first-use binding proof, **security validation must remain PARTIAL**, not MET. Pinning is candidate mitigation, not demonstrated solution.
 - Legal: Anymote + Pairing protocols were originally Google open source [SECONDARY], current partner SDK closed behind partner login [SECONDARY]; reverse-engineered impl tolerated but not official; maintenance/legal risk to be assessed.
 
 **Capabilities — corrected:**
@@ -192,22 +197,29 @@ All rankings now marked as [INFERRED] with uncertainty.
 
 No legal opinion; research evidence only.
 
-## Recommendation for V1 — re-evaluated after corrections
+## Recommendation for V1 — re-evaluated after corrections, governance fix session 3
 
-**Primary candidate remains:** Android TV / Google TV + Samsung Tizen, but with **security validation PARTIAL** and **casting/voice PARTIAL/NOT VERIFIED**, so ADR must be **proposed** not accepted.
+**Current proposed/leading candidates:** Android TV / Google TV + Samsung Tizen, but with **security validation PARTIAL**, **casting/voice PARTIAL/NOT VERIFIED**, **product-owner approval pending**, so ADR remains **proposed** not accepted, and PRODUCT.md must describe as proposed candidates not fixed constraints.
 
-Rationale after correction:
-- Maximizes reach (~40.9% shipment) with two distinct stacks [INFERRED from VERIFIED TechInsights].
-- Both support core remote requirements: discovery, pairing (popup+token, PIN+cert), power via WoL/toggle, volume, D-pad, text input, app launch — enabling <2 min setup [VERIFIED via primary libs].
-- Android-first aligns with product constraint.
-- **Security:** Both reference implementations disable server cert verification (CERT_NONE, rejectUnauthorized:false) [VERIFIED primary code]. However, viable pinning design exists (per-TV serverCertSha256 stored encrypted, DANE-style fingerprint pinning, no trust-all) in other projects [SECONDARY TVgrip PR #2, hafa-remote PR #15]. Greenfield4 can implement TOFU pinning to satisfy PRODUCT.md/DOMAIN.md identity-change/re-pairing, but requires hardware validation. Until then, **security validation PARTIAL**.
+Rationale after correction (separating VERIFIED facts, secondary, inference, proposed design, unresolved, product-owner decisions):
+- **VERIFIED facts:** Market reach Samsung 16.9%, Android/Google TV >24% [TechInsights primary]; samsungtvws v3.0.6 active 2026-09-11; kud/androidtv-remote pairing-manager.ts rejectUnauthorized:false and hash binding cert material+PIN [primary code]; connection.py CERT_NONE [primary]; Roku primary docs restriction.
+- **Secondary:** TVgrip PR #2 and hafa-remote PR #15 pinning pattern viability; Pixalate US share; Swift TVCertificatePinner note.
+- **Inference:** Maximum reach ~40.9% shipment INFERRED from VERIFIED figures; both support core remote requirements: discovery, pairing (popup+token, PIN+cert), power via WoL/toggle, volume, D-pad, text input, app launch — enabling <2 min setup [VERIFIED via primary libs]; Android-first aligns with product constraint.
+- **Proposed design:** TOFU certificate pinning as candidate mitigation for both ecosystems, not demonstrated satisfying design; requires hardware validation.
+- **Unresolved:** Samsung first-use MITM resistance (token flow not shown to cryptographically bind TLS cert); Android TV first-use trust persistence and MITM resistance proof; legal/terms official validation; hardware matrix; product-owner approval of IRDB obligations and ecosystem candidates.
+- **Product-owner decisions:** None yet in durable GitHub record — Issue #7 open, no approval; ADR deciders exclude product owner for proposed state.
+
+- **Security:** Both reference implementations disable server cert verification (CERT_NONE, rejectUnauthorized:false) [VERIFIED primary code]. Samsung: token flow not cryptographically bound to cert, first-use MITM resistance unresolved. Android TV: PIN pairing hash includes client/server cert moduli/exponents + PIN [VERIFIED], providing stronger binding but still requires proof and persistence validation. TOFU pinning is candidate mitigation, not demonstrated solution, and must not be generalized across ecosystems. Until proven against PRODUCT.md/DOMAIN.md including unexpected identity change → fail safe and re-pair, **security validation PARTIAL**.
 - **Casting/mirroring:** Samsung casting NOT via WS API, requires separate Smart View SDK/DIAL/Google Cast validation [SECONDARY]; Android TV gives Google Cast natively but remote API only launches apps. So casting criterion **PARTIAL**, not MET.
 - **Voice:** Both ecosystems **NOT VERIFIED** for clean safe voice control from phone via cited remote APIs (Samsung VoiceControl is on-TV Web API, Android remote-manager.ts says voice not implemented). So voice criterion **NOT MET** for V1, which is acceptable per PRODUCT.md "voice only when exposes it cleanly and safely, only if it does not delay launch".
+- **IR data sources:** Built-in phone IR capability fixed; IRDB custom permission candidate with obligations requiring product-owner/legal acceptance still pending, runtime CDN recommended but does not remove obligations; LIRC unresolved not approved as shipping source.
 - Maintenance/legal: Both are reverse-engineered community protocols, not official public APIs, with legal risk and very new `kud` lib, so maintenance burden claim revised to PARTIAL.
 
 **Deferred:** LG webOS — strong third candidate, pointer trackpad premium, WoL, security TOFU similar, but reach slightly lower.
 
 **Rejected for V1:** Roku ECP — fails security invariants and now primary docs explicitly restrict 3rd-party mobile apps and require Control by mobile apps Enabled as of OS 14.1, plus no auth. Documented as Unsupported with primary source.
+
+**Governance:** Until explicit product-owner approval exists in durable GitHub record (Issue #7 approval), ecosystem choice must remain proposed/leading candidates, not fixed V1 constraints. Do not accept ADR merely to make PR easier to merge.
 
 ## Hardware matrix criteria (for release) — unchanged
 
@@ -215,11 +227,12 @@ Rationale after correction:
 - Expected: predicted from family/protocol evidence but not yet represented.
 - Unsupported: known not to work or intentionally not supported. Roku ECP Unsupported for V1 due to security + primary docs restriction.
 
-## Next steps — corrected
+## Next steps — corrected session 3 governance fix
 
-- Change ADR-0005 status to proposed, update with corrected licensing, security PARTIAL, casting PARTIAL, voice NOT VERIFIED.
-- Update PRODUCT.md to remove CC0, coverage stats from fixed constraints, correct casting/voice, mark legal/terms and security validation PARTIAL.
-- Update IR dataset doc with correct license.
-- Link PR #6 to issue #7.
-- Update MEMORY.md.
-- Re-run verification, reply to review with mapping.
+- Keep ADR-0005 proposed, update deciders to reflect no product-owner approval in durable record, update with corrected licensing, security PARTIAL with separated trust analysis (Samsung first-use MITM unresolved, Android TV cert binding verified but persistence unresolved), casting PARTIAL, voice NOT VERIFIED.
+- Update PRODUCT.md to remove ecosystems from fixed constraints while proposed, describe as proposed/leading candidates, correct IR data sources to candidate/evaluated not fixed, correct IRDB legal wording (no unsupported interpretation, CDN does not remove obligations), mark choose-first-two-ecosystems PARTIAL pending approval, preserve distinction between product-direction approval (pending) and unresolved security/legal validation.
+- Update IR dataset doc with correct license wording, remove unsupported Play Store/APK interpretation, clarify CDN does not remove obligations, keep LIRC unresolved not approved as shipping source.
+- Link PR #6 to issue #7 and record that product-owner approval does not yet exist in GitHub/project state — do not invent approval, leave as remaining human action.
+- Update MEMORY.md with actual changes, verification, unresolved risks, next step.
+- Re-run verification (scripts/verify.sh), spec/code/security reviews, update PR body, reply mapping, leave PR open for re-review.
+- Do not move PROJECT_PHASE out of discovery, do not change ALLOW_APP_STACK, do not introduce app code, do not accept ADR merely to merge.

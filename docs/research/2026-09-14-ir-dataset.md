@@ -27,14 +27,15 @@ Research still required: "Validate IR dataset provenance, quality, matching stra
 
 - **Previous incorrect claim removed:** Earlier version described IRDB as "CC0 / public domain" — **incorrect**, removed everywhere per review finding. Source of incorrect claim was secondary blog `infishark.com` [2](https://infishark.com/blogs/learn/ir-code-databases-how-universal-remotes-know-so-many-devices) which described IRDB as public domain; primary LICENSE.md contradicts that.
 
-- **Obligations for Greenfield4 V1:**
-  1. Open issue on irdb repo before product use — low effort, compatible with open development.
-  2. Include attribution notice in product (e.g., About screen) — compatible with premium UX if placed in settings/about.
-  3. Provide up to three fully licensed copies/units on request — for free app, providing Play Store access or APK satisfies; for future hardware, shipping cost must be budgeted. Not onerous but must be tracked as legal obligation.
+- **Obligations for Greenfield4 V1 (state only what license requires, no interpretation):**
+  1. Prior to using database in product, inform irdb project by opening an issue on https://github.com/probonopd/irdb/issues — verbatim from LICENSE.md.
+  2. Include notice in product: `Contains/accesses irdb by Simon Peter and contributors, used under permission. For licensing details and for information on how to contribute to the database, see https://github.com/probonopd/irdb` — verbatim.
+  3. Make available up to three fully licensed copies/units of product to irdb team, represented by Simon Peter, free of charge (including shipping and handling) upon request — verbatim. No interpretation that Play Store access or APK necessarily satisfies; state only license text. Operational consequence to be confirmed by product-owner/legal, not assumed.
+  4. If fail to comply, permission revoked; AS IS no warranty.
 
-- **Access recommendation from primary README:** Do not bundle whole DB, access dynamically at runtime via CDN (e.g., `https://cdn.jsdelivr.net/gh/probonopd/irdb@master/codes/...`) to benefit from updates [VERIFIED gh api readme content].
+- **Access recommendation from primary README:** Do not bundle whole DB, access dynamically at runtime via CDN (e.g., `https://cdn.jsdelivr.net/gh/probonopd/irdb@master/codes/...`) to benefit from updates [VERIFIED gh api readme content]. **Clarification:** Runtime CDN access is recommended by README for updateability, but does not remove license obligations because LICENSE.md explicitly covers both "include this database" and "access this database over network" under same conditions — network access still requires issue, attribution, and copy provision.
 
-- **Acceptability for V1:** **Conditionally acceptable** with obligations tracked. Not CC0, but custom permissive with attribution and notification. Requires product owner to approve obligations and ensure attribution UI and issue-notification process exists. Alternative: avoid bundling, use runtime CDN access to reduce license surface.
+- **Acceptability for V1:** **Conditionally acceptable as candidate data source** with obligations tracked, not fixed shipping dependency while legal acceptability unresolved. Not CC0, but custom permissive with attribution and notification. Requires product-owner/legal acceptance of obligations still pending and explicit approval before treating as approved V1 shipping source. Alternative: avoid bundling, use runtime CDN access (still with obligations).
 
 ### LIRC (Linux Infrared Remote Control) remote database
 
@@ -57,12 +58,12 @@ Research still required: "Validate IR dataset provenance, quality, matching stra
 - **How codes added (secondary estimate from same blog):** manufacturer docs (Sony SIRC, Denon/Marantz) authoritative, IR capture dominant, OEM cross-referencing rebadged products [SECONDARY ESTIMATE].
 - **Quality risks (inference):** captured codes may be incomplete, format conversion timing errors, community contributions vary. Mitigation per PRODUCT.md: verify via user flow, select profile with best demonstrated coverage.
 
-## Matching strategy (for V1) — unchanged, but licensing-aware
+## Matching strategy (for V1) — licensing-aware, candidate source
 
 Per PRODUCT.md power/failure and DOMAIN.md:
 
 1. **Phone capability detection:** Check ConsumerIrManager; if absent, hide IR.
-2. **Candidate profiles:** If using IRDB, prefer runtime CDN access per primary README recommendation, not full bundling, to benefit from updates and reduce license bundling surface. Filter by brand/model, OEM cross-reference.
+2. **Candidate profiles:** IRDB is candidate/evaluated data source (not fixed shipping dependency while legal acceptability unresolved). If using IRDB, primary README recommends runtime CDN access per primary README recommendation, not full bundling, to benefit from updates [VERIFIED]. This does NOT remove license obligations because LICENSE.md covers network access too. Filter by brand/model, OEM cross-reference.
 3. **Verification flow:** Ask user to point phone at TV, transmit low-risk command (Power/Volume), ask "Did TV respond?", verify 2-3 more commands, compute coverage score, select best demonstrated coverage, store as IR profile entity with source + verified coverage.
 4. **No blind transmit:** Never iterate every known code automatically.
 5. **Hybrid control:** One visible remote may combine transports.
@@ -73,10 +74,10 @@ Per PRODUCT.md power/failure and DOMAIN.md:
 - **Previous claim:** IRDB contains Samsung and LG codes verified via LIRC list [SECONDARY]. Now marked as secondary estimate: LIRC remotes list includes lg, samsung entries via gist referencing remotecentral, lirc-remotes, remotecodelist, harctoolbox [SECONDARY], not primary verification of IRDB contents.
 - **Revised:** Expected coverage for Samsung/LG via IRDB is **inferred** from brand popularity, not verified from primary index. Must be validated via real hardware or direct CDN index check (`https://cdn.jsdelivr.net/gh/probonopd/irdb@master/codes/index`).
 
-## Licensing and provenance rule compliance — corrected
+## Licensing and provenance rule compliance — corrected session 3
 
-- **IRDB:** Custom permission, not CC0. Obligations: notify via GitHub issue, include attribution notice, provide up to 3 copies on request. Must be tracked as legal obligation, not public domain.
-- **LIRC DB:** Licensing unresolved; do not treat as legally cleared via GPL. Leave unresolved.
+- **IRDB:** Custom permission, not CC0. Obligations verbatim: notify via issue, include attribution notice, make up to 3 fully licensed copies/units available on request (no interpretation that Play Store/APK satisfies). Must be tracked as legal obligation requiring product-owner/legal acceptance still pending. Runtime CDN access recommended by README for updateability but does not remove obligations because license explicitly covers network access. Candidate/evaluated data source, not fixed shipping dependency while acceptability unresolved.
+- **LIRC DB:** Licensing unresolved (license null); do not treat as legally cleared via GPL. Leave unresolved and **not approved as shipping source** until database/config licensing established.
 - **Uploaded ZIPs:** Evidence only per PRODUCT.md provenance rule.
 - IR codes are public facts, not credentials, but database compilation has licensing.
 
@@ -86,11 +87,12 @@ Per PRODUCT.md power/failure and DOMAIN.md:
 - **Expected:** Profile from IRDB (accessed via CDN) that matches brand family but not yet verified via user flow.
 - **Unsupported:** No profile found or phone lacks IR hardware.
 
-## Open questions
+## Open questions — session 3
 
-- IRDB: Does CDN runtime access count as "accessing database over network" under license? Yes, license explicitly allows accessing over network, with same obligations.
-- LIRC: Need primary license file for config data.
+- IRDB: Does CDN runtime access count as "accessing database over network" under license? Yes, license explicitly allows accessing over network, with same obligations — CDN does not reduce obligations. Operational interpretation of "up to three fully licensed copies/units" for free app (Play Store/APK vs physical shipment) requires product-owner/legal confirmation, not assumed.
+- LIRC: Need primary license file for config data; remains unresolved, not approved as shipping source.
 - Coverage stats need primary authoritative source or hardware validation.
+- Governance: Product-owner/legal acceptance of IRDB obligations still required before treating as approved V1 shipping source; IR capability fixed, data sources remain candidate/evaluated until resolved.
 
 ## References
 

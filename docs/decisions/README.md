@@ -25,7 +25,7 @@ repository appends its own product and stack decisions after them.
 | [0002](0002-verification-gate.md) | `scripts/verify.sh` + GitHub Actions as the sole quality gate | accepted | 2026-09-06 |
 | [0003](0003-flat-skill-files.md) | Flat per-task workflow files instead of upstream `SKILL.md` directories | accepted | 2026-09-06 |
 | [0004](0004-lifecycle-config-stack-guard.md) | Project lifecycle config replaces the hard-coded no-app-stack guard | accepted | 2026-09-06 |
-| [0005](0005-v1-ecosystem-selection.md) | V1 Smart-TV ecosystems — Android TV/Google TV + Samsung Tizen | proposed | 2026-09-14 (corrected 2026-09-14 session 2) |
+| [0005](0005-v1-ecosystem-selection.md) | V1 Smart-TV ecosystems — Android TV/Google TV + Samsung Tizen (proposed candidates) | proposed | 2026-09-14 (corrected 2026-09-14 session 3) |
 
 The ADR that records a project's **implementation stack** is referenced by
 `STACK_DECISION_ADR` in [`../../config/project.env`](../../config/project.env),
