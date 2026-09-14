@@ -330,7 +330,9 @@ no architecture work, no lifecycle change.
 - Hardware matrix: criteria defined, execution not started. Naming: criteria and
   candidates researched, no decision. Casting PARTIAL, voice NOT VERIFIED.
 
-- CI on the PR head (run `34869405838`, commit `6fe7b2a`): **both jobs `success`** —
+- CI on the **first pushed commit** `6fe7b2a` (run `34869405838`), checked before
+  this entry's final update — see the correction note at the end of this entry for
+  why this line no longer says "the PR head": **both jobs `success`** —
   `Foundation gate` and `Independent checks`. The job's steps confirm the gate
   really ran: `Ensure shellcheck is present`, `Make PyYAML available for the
   workflow YAML check`, `Run the verification gate`, and `Run the negative tests
@@ -357,3 +359,43 @@ no architecture work, no lifecycle change.
 **Issue:** #8 (this task), #7 (approval, closed as completed)
 **PR:** #10 (`arena/01a0a0b5-greenfield4`, left open for independent review, not self-merged)
 **Base:** PR #6 merged at `769b9f2`
+
+**Correction (appended, same session — verification-record accuracy only):**
+
+The CI bullet above originally read "CI on the PR head (run `34869405838`, commit
+`6fe7b2a`)". That was true when written but became false as soon as the second
+commit of this session was pushed, which moved the head off `6fe7b2a`. Independent
+review of PR #10 (CHANGES_REQUESTED, 2026-09-14T16:40:25Z) caught it. The label
+was corrected in place; **no evidence was removed** — the run id, commit sha, both
+job conclusions, and all four step names are unchanged. Per this file's own rule
+("never rewrite or delete an old entry; correct it with a new one"), this note is
+appended rather than the chronology being silently restated.
+
+**Cause, and the rule that follows from it.** Recording a CI witness against a
+specific sha *inside a commit* is self-invalidating: the commit that records it
+becomes a new head, so the claim is stale the moment it lands. The fix is
+structural, not editorial — committed memory must stay sha-independent, and the
+exact final-head witness belongs in the PR body, which can be edited without
+moving the head.
+
+**Accurate chronology for this task:**
+
+- Local gates, run before each commit: `bash scripts/verify.sh` → **PASS — 16
+  passed, 0 failed, 2 skipped**; `bash scripts/selftest.sh` → **PASS — 128 cases
+  behaved as asserted**.
+- CI was green on the **first** pushed commit `6fe7b2a`: run `34869405838`,
+  `Foundation gate` and `Independent checks` both `success`.
+- CI was green again on the **second** pushed commit `32e3244`: run
+  `34869684834`, `Foundation gate` and `Independent checks` both `success`
+  (verified via the per-check-run conclusions on that commit).
+- The **exact final-head** CI witness is deliberately **not** recorded here. This
+  correction is itself a commit and therefore creates a new head, so any sha
+  written into it would already be stale. That witness is verified externally
+  after the last documentation commit is pushed and is recorded in the **PR body**
+  (head sha, workflow run id, `Foundation gate` result, `Independent checks`
+  result). Treat the PR body, not this file, as the authoritative record of the
+  final-head CI result.
+
+**Rule for future sessions:** never commit "CI is green on head `<sha>`". Write
+the local results and the per-commit CI facts into memory, and put the
+final-head witness in the PR body after the last push.
