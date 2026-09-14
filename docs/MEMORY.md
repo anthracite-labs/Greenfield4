@@ -214,3 +214,134 @@ move to architecture until the product definition is reviewed.
 **ADR:** docs/decisions/0005-v1-ecosystem-selection.md (proposed)
 **PR:** #6
 **Issue:** #7 (open, no approval)
+
+## 2026-09-14 — Discovery-state reconciliation: Issue #7 approval is durable, ADR-0005 accepted (issue #8, branch arena/01a0a0b5-greenfield4)
+
+**Context:** Issue #8, branch `arena/01a0a0b5-greenfield4`, base `main` @ `769b9f2`
+(the PR #6 merge commit). Narrow discovery-state reconciliation — no new research,
+no architecture work, no lifecycle change.
+
+**Done:**
+- **Verified the durable GitHub state before editing anything.** Issue #7:
+  `state=closed`, `state_reason=completed`, `closed_at=2026-09-14T16:09:20Z`,
+  `closed_by=anthracite-labs`. Exactly one comment, id `5666976043`,
+  `author=anthracite-labs`, `author_association=OWNER`,
+  `created_at=2026-09-14T16:08:57Z`; `reactions` length `0` (the approval is in
+  comment text, not a reaction). PR #6: `MERGED`, merge commit `769b9f2`.
+  Approval text quoted verbatim: "Product-owner approval: Approved. Proceed with
+  the proposed Android TV / Google TV + Samsung Tizen V1 ecosystem direction
+  recorded in ADR-0005, subject to the documented PARTIAL security/legal
+  validation and remaining discovery exit criteria. Approved to merge PR #6 after
+  final independent review confirms head and CI are unchanged."
+- **ADR-0005** → `Status: accepted`. Deciders now lead with the product owner plus
+  the comment reference and timestamp. Added an explicit "Scope of the recorded
+  approval" boundary and a "Status history" line. Recorded the disposition of both
+  original `proposed` reasons rather than deleting them: (1) missing approval —
+  **RESOLVED**; (2) security trust model PARTIAL — **STILL OPEN, NOT RESOLVED**.
+  Title `(proposed candidates)` → `(approved direction)`. All PARTIAL security,
+  legal, hardware, casting, voice, and IR caveats preserved verbatim in substance.
+- **Decisions index** row → `accepted`, title aligned, plus a scope note stating
+  that acceptance is product direction only and that ADR-0005 is *not* the
+  application-stack ADR.
+- **PRODUCT.md** — approved V1 ecosystem direction in Fixed V1 constraints, V1
+  scope, and compatibility promise; "choose the first two smart-TV ecosystems"
+  ticked `[x]`; the other five discovery items left `[ ]` PARTIAL/open; discovery
+  exit criteria rewritten to drop the now-satisfied approval item and keep
+  security, legal, IR licensing, naming, and hardware matrix; added an explicit
+  "approval states are separate" paragraph.
+- **Research doc** (`2026-09-14-ecosystem-evidence.md`) — corrected only the
+  current-state governance statements; added a "partly superseded" banner over the
+  session-3 next-steps list instead of rewriting it. No evidence, statistic,
+  security, or licensing claim was altered.
+- **Plan** written to `docs/plans/0008-discovery-state-reconciliation.md`.
+- **Not touched:** `config/project.env` (verified zero diff — `PROJECT_PHASE=discovery`,
+  `ALLOW_APP_STACK=0`, `STACK_DECISION_ADR=` empty), `docs/DOMAIN.md` (zero diff),
+  and the PRODUCT.md security/privacy requirements (verified zero changed lines).
+  No application stack, framework, source, database, auth, hosting, or UI added.
+
+**Verified:**
+- `gh api repos/anthracite-labs/Greenfield4/issues/7/comments` → 1 comment, the
+  approval above; `gh issue view 7 --json state` → `CLOSED`;
+  `gh pr view 6 --json state` → `MERGED`. Issue #8 already existed with matching
+  acceptance criteria, so no new issue was created.
+- `bash scripts/verify.sh` → **PASS — 16 passed, 0 failed, 2 skipped**
+  (`links` 55 relative links resolve, up from 54 because of the new Issue #7
+  anchor links; skips are `shell_lint` — shellcheck absent — and `agentshield` —
+  scanned 0 files, no Claude config surface, advisory only).
+- `bash scripts/selftest.sh` → **PASS — 128 cases behaved as asserted**.
+- **Dead end worth recording:** the first `selftest.sh` run **FAILED — 127 passed,
+  1 failed**, case `workflows_yaml/corrupted` ("gate exited 0; the fault was not
+  caught"). Cause: no YAML parser, so `verify.sh` `workflows_yaml` reported
+  `SKIP`, and a skipped check cannot catch an injected fault. Confirmed
+  **pre-existing and unrelated to this diff** by re-running with the changes
+  stashed — identical 127/1 failure. Fixed by installing the parser
+  (`python3 -m pip install --break-system-packages pyyaml` → PyYAML 6.0.3; plain
+  `pip install` is refused by PEP 668 externally-managed-environment). After that,
+  `workflows_yaml` reports **PASS (1 workflow file parses)** and the full selftest
+  is green. Environment-only change; nothing installed is committed.
+- Code review (`.ecc/skills/code-review.md`) over `git diff main...HEAD`: no
+  CRITICAL/HIGH. Two MEDIUM accuracy findings self-caught and fixed before commit:
+  the research doc's "Unresolved" bullet still lumped ecosystem approval in with
+  genuinely open items, and the supersession banner said "two" bullets were stale
+  when the session-3 list had more. No new dependencies, no secrets, no shell or
+  CI changes.
+- Security review **not triggered**: the diff touches only `docs/**` Markdown — no
+  auth, secrets, input handling, paths, shell, network calls, dependencies,
+  payment/personal data, CI workflow, `.ecc/**`, `AGENTS.md`, or
+  `config/project.env`. Assessed against the `.ecc/rules/security.md` trigger
+  list rather than assumed.
+
+**Learned:**
+- The Issue #7 approval is **scoped by its own wording**: it approves the ecosystem
+  *direction* "subject to the documented PARTIAL security/legal validation and
+  remaining discovery exit criteria". It does not approve IRDB obligations, LIRC
+  licensing, vendor legal terms, security validation, hardware validation, or
+  naming. The easiest failure in this task was letting "direction approved" drift
+  into "ecosystem validated", so every edit carries the boundary explicitly.
+- Accepting ADR-0005 is safe with respect to the no-stack guard. `verify.sh`
+  `validate_stack_transition` requires `PROJECT_PHASE=implementation`, a non-empty
+  `STACK_DECISION_ADR`, and that file to carry `**Decision Type:** application-stack`
+  **and** `**Status:** accepted`. `STACK_DECISION_ADR` is empty and
+  `grep -rn "Decision Type" docs/decisions/` matched only the template comment and
+  ADR-0004 prose — ADR-0005 has no such marker. A product ADR being `accepted`
+  therefore cannot unlock implementation.
+- `docs/decisions/README.md` forbids editing **accepted** ADRs to change the
+  decision. ADR-0005 was `proposed` when edited and its decision content is
+  unchanged, so supersession was not required — but the reasoning is now written
+  into the ADR so a reviewer can check it instead of trusting it.
+- A `SKIP` in `verify.sh` is not a pass, and it silently disables the matching
+  `selftest.sh` negative case. If the selftest reports a fault "not caught", check
+  whether the corresponding check skipped before assuming a regression.
+- `docs/plans/` and `docs/research/` are historical records as much as current
+  state. Banning stale language there wholesale would mean rewriting history;
+  the working pattern is a dated "partly superseded" banner plus a pointer to the
+  current-state file.
+
+**Still PARTIAL / open after this change:**
+- Security validation, both ecosystems: reference implementations disable server
+  cert verification (`ssl.CERT_NONE`, `rejectUnauthorized:false`); first-use MITM
+  resistance unresolved for Samsung; Android TV cert-binding verified but
+  persistence unproven; TOFU pinning is candidate mitigation, not demonstrated.
+- Vendor legal/terms validation: portals blocked by the egress allowlist, reduced
+  coverage, needs a human with portal access.
+- IR sources: IRDB remains a candidate conditional on its custom-permission
+  obligations and product-owner/legal acceptance; LIRC database licensing remains
+  unresolved and is not an approved shipping source.
+- Hardware matrix: criteria defined, execution not started. Naming: criteria and
+  candidates researched, no decision. Casting PARTIAL, voice NOT VERIFIED.
+
+**Next:**
+- Independent review of this PR by ChatGPT; do not self-merge.
+- Highest-value discovery work now is the security trust analysis, since it is the
+  one gate the product owner explicitly conditioned the approval on and it is
+  blocked on real hardware for the pinning-stability evidence.
+- Legal/terms validation needs a human with vendor-portal access; the sandbox
+  cannot close it.
+- Do not move to `architecture` until security validation is resolved or the
+  product owner explicitly accepts it as PARTIAL, and legal/terms validation is
+  complete. Approval of the direction is no longer an outstanding condition;
+  those two still are.
+
+**ADR:** docs/decisions/0005-v1-ecosystem-selection.md (accepted — product direction only)
+**Issue:** #8 (this task), #7 (approval, closed as completed)
+**Base:** PR #6 merged at `769b9f2`
