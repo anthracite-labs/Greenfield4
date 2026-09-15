@@ -49,7 +49,7 @@ invariants.
 | L5 adapters | Roku ECP | **REJECT V1** | The supplied “build first” recommendation is contradicted by current Roku primary documentation: ECP commands may not be sent from third-party platforms such as mobile apps. It also conflicts with Greenfield4's security model. Roku remains Unsupported for V1. |
 | L5 adapters | Samsung Tizen WSS/token | **HARVEST → ADOPT ecosystem, REJECT trust-all posture** | Ecosystem already approved. OSS solves discovery/control/token persistence mechanics. Common `CERT_NONE` / trust-all handling is compatibility precedent, not acceptable Greenfield security. |
 | L5 adapters | LG webOS | **HARVEST → DEFER** | Good immediate next ecosystem candidate, already recorded, but not one of the approved two V1 targets. |
-| L5 adapters | Android TV Remote v2 | **HARVEST → ADOPT ecosystem and hardened reconnect pattern** | Ecosystem already approved. Multiple clients solve pairing/control; ScreenCast and TVgrip show per-TV server-certificate pinning is implementable. Stop researching pinning feasibility; hardware stability and first-use attempt controls remain. |
+| L5 adapters | Android TV Remote v2 | **HARVEST → ADOPT ecosystem and hardened reconnect pattern** | Ecosystem already approved. Multiple clients solve pairing/control; ScreenCast proves exact server-certificate verification on reconnect (its pin store is host-keyed), while TVgrip binds the fingerprint to a persisted TV record. Greenfield must adopt the mechanism **without** copying host/IP as identity. Stop researching pinning feasibility; hardware stability and first-use attempt controls remain. |
 | L5 adapters | Sony BRAVIA | **HARVEST → DEFER** | Useful future candidate; not a reason to widen V1 beyond the approved two ecosystems. |
 | L6 abstraction | adapter boundary + canonical capabilities/keys | **HARVEST product pattern; ADOPT domain concept** | PRODUCT.md already requires a capability-driven, brand-agnostic remote. Do not accept the uploaded Kotlin `TvAdapter` interface/module layout during discovery. |
 | L7 mirroring | omit from V1 | **HARVEST rationale; NOT AUTO-ADOPTED** | Greenfield4 currently records casting/mirroring as PARTIAL V1 scope. Omitting it would be a product-scope change, not a research correction. Route separately to the product owner if desired. |
@@ -139,8 +139,17 @@ source:
 The TLS context in that implementation accepts the self-signed certificate at handshake time, then
 performs the exact pin check immediately after `startHandshake()` and before the application remote
 channel is used. That is not a general CA-validation design, but for a paired self-signed endpoint it
-demonstrates the core Greenfield requirement: **subsequent sessions can be bound to the exact
-identity recorded at pairing and fail closed on change without a global process-wide ignore switch.**
+demonstrates the core mechanism: **a subsequent session can verify the exact certificate captured at
+pairing and fail closed on change without a global process-wide ignore switch.**
+
+**Do not copy ScreenCast's association key.** `AndroidTvCertStore.kt` explicitly stores
+`getServerPin(host)` / `pinServer(host, ...)` in a per-host preference map, while
+`AndroidTvPersistence.kt` separately maintains a more stable paired-device key (BLE MAC when
+available, otherwise name) and last-known host. Therefore ScreenCast proves certificate-checking
+feasibility, **not** that host/IP is an acceptable security identity. Greenfield must attach the
+certificate/SPKI pin to its own paired-device record; rediscovery may update a route/IP only after
+the presented certificate proves continuity with that record. mDNS names, MAC-like TXT fields and
+IP addresses remain discovery/routing hints, never the cryptographic identity.
 
 A second implementation precedent exists in merged TVgrip PR #2
 (`mbir31/TVgrip`, merge commit `42a1c151de6fb6b86713ab30ec83962cd14e8cec`), whose recorded
@@ -321,7 +330,7 @@ The remaining work is evidence that OSS cannot substitute for:
 | `Perun85/Samsung.SmartTv.Client` | `ceb0700282298c2f7be072d9a8bade005bdf6232` | custom TV certificate-validator hook; trust-all default |
 | `tronikos/androidtvremote2` | `b09f21432ba33e42536215a8f41641d801cf6a2c` | established Remote-v2 client behavior |
 | `kud/androidtv-remote` | `5a05d73eb477688fa04117961d9c7596fce31828` | independent Remote-v2 client behavior |
-| `ddagunts/ScreenCast` | `7e66bbe7ae5cc64c012bbe4987940be67925d137` | exact per-TV server-cert pin + encrypted client credential implementation |
+| `ddagunts/ScreenCast` | `7e66bbe7ae5cc64c012bbe4987940be67925d137` | exact server-cert reconnect check + encrypted client credential; **pin is host-keyed, so Greenfield must not copy that association model** |
 | `mbir31/TVgrip` PR #2 | merge `42a1c151de6fb6b86713ab30ec83962cd14e8cec` | second Android TV pinning / AndroidKeyStore implementation precedent |
 | `SebghatYusuf/android_remote` | `130badada23d0332fe6aa8d44cec21e1c3f44801` | mobile secure client-key storage precedent; trust-all server anti-pattern |
 | `Lucaslhm/Flipper-IRDB` | `d126fb1b6f1e114c52b4a8c19839ea65e3a9c24d` | CC0 policy + pre-`2319685` exclusion |
