@@ -1050,7 +1050,11 @@ At the time this trust model was first written, server-certificate pinning was l
     session and returns it only after the pairing sequence reaches successful SecretAck handling;
   - `AndroidTvSocketFactory.kt` performs exact SHA-256 comparison for an expected TV leaf
     certificate on reconnect, closes the socket and throws on mismatch;
-  - `AndroidTvRemoteChannel.kt` uses that expected pin for the 6466 remote-control channel.
+  - `AndroidTvRemoteChannel.kt` uses that expected pin for the 6466 remote-control channel;
+  - **association caveat:** `AndroidTvCertStore.kt` stores the pin by `host`, while
+    `AndroidTvPersistence.kt` separately keeps a paired-device key and last-known host. ScreenCast
+    therefore proves exact reconnect verification, but its host/IP association is **not** adopted as
+    Greenfield4 device identity.
 - `mbir31/TVgrip` PR #2, merged as
   `42a1c151de6fb6b86713ab30ec83962cd14e8cec`, records the same pattern: AndroidKeyStore client
   identity, TV-certificate capture during pairing, per-TV encrypted fingerprint storage and a
@@ -1092,7 +1096,9 @@ Treat these as closed **feasibility** questions:
 - protected storage of Samsung tokens;
 - protected storage of Android TV client private keys;
 - capture of a TV certificate during Android TV pairing;
-- exact per-TV reconnect certificate pinning and fail-closed mismatch behavior;
+- exact reconnect certificate verification and fail-closed mismatch behavior; TVgrip also shows a
+  per-TV record association, while ScreenCast's host-keyed association is explicitly **not** a
+  Greenfield pattern;
 - client-controlled certificate validation hooks for Samsung.
 
 Keep open only the questions that need product-owner, legal, or physical-device evidence. This is
