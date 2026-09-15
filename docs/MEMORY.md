@@ -825,3 +825,57 @@ hardware probes, human vendor/legal review, IRDB obligation disposition, naming,
 review before architecture.
 
 **Issue:** #14 · **PR:** #16
+
+
+---
+
+## 2026-09-15 — Arena IR dataset pass reconciled
+
+**Context:** Product owner requested an Arena AI second pass on IR datasets after agreeing to the
+Harvest / Adopt / Reject strategy. Arena returned a detailed coverage/licensing survey. The result
+was independently checked against pinned primary GitHub history before being recorded.
+
+**Key correction to Arena headline:** Do **not** classify all of `flipperdevices/IRDB` as a clean
+MIT shipping dataset. At pinned head `f7b15366` the repository has a top-level MIT license and
+3,051 TV files, but the 2024-07-08 `add mi_remote_database` commit (`992b64a9`) already contained
+2,808 TV paths. Original imported files explicitly state
+`from Mi Remote DB <https://github.com/ysard/mi_remote_database>` and
+`AGPL-3.0 license, Copyright (C) 2021-2023 Ysard`. The later parsing commit
+`2e1b88ce` converted many signals to parsed protocol/address/command form and removed that notice
+from the file body. Greenfield therefore treats the official corpus as **mixed provenance** and
+rejects blanket adoption.
+
+**Community CC0 check:** `Lucaslhm/Flipper-IRDB@d126fb1b` is currently readable through GitHub's
+file API. Its README and CC0 license are present and the README explicitly says commits before
+`2319685` are not covered. Comparing the parent tree immediately before that boundary with the
+pinned current tree yields 143 IR paths first introduced after the boundary, only 20 of them TVs
+(2 Samsung, no LG). This is useful clean contribution material, but not sufficient as the sole V1
+dataset.
+
+**Useful candidate delta:** Comparing the official Flipper tree at the Mi Remote import to current
+head leaves 245 current TV paths not present in the bulk import, across 66 brands: Samsung 43, LG 28,
+Sony 20, Panasonic 15, Philips 15, Vizio 11, Hisense 8, Toshiba 8, Sharp 6, TCL 3, etc. These are
+**candidate** clean profiles only; before shipping a selected file Greenfield retains/checks its
+introducing commit/source rather than assuming the top-level license proves provenance.
+
+**Decision:** V1 ships a **small provenance-clean IR profile manifest**, not an entire historical
+database. Every shipped profile records source repo + exact commit/path + provenance/license class +
+normalized payload + verification state. Harvest Flipper formats, normalization, parsed-protocol
+representation and contribution mechanics. Prefer clearly post-boundary CC0 or individually traced
+clean contributions. Exclude Mi Remote-derived/AGPL-marked material from the proprietary V1 manifest
+unless human/legal explicitly approves it.
+
+`probonopd/irdb` is now **DEFERRED as a long-tail fallback**, not a discovery blocker. Its custom
+notification/notice/up-to-three-copy obligations are considered only if a concrete supported-device
+coverage gap makes them worthwhile. LIRC remains rejected for shipping while its data/config license
+is unresolved.
+
+**Repo:** Added `docs/research/2026-09-15-ir-dataset-second-pass.md`, reconciled PRODUCT.md,
+the Issue #14 HAR matrix and the original IR research note. Broad IR-dataset research is closed;
+remaining work is bounded per selected profile plus hardware verification.
+
+**Next:** Continue the remaining discovery gates: Android decision-critical hardware probes,
+human vendor/legal terms review, naming/focused clearance and final PRODUCT review. IRDB acceptance
+no longer requires a product-owner decision unless an actual clean-profile coverage gap appears.
+
+**Issue:** #14 · **PR:** #16
