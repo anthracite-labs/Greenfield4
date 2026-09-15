@@ -1007,8 +1007,10 @@ One conflict is structural and cannot be closed by pinning:
 > connection *after* the first; it cannot protect the first.
 
 Resolving this needs a product decision among options that include: accepting a documented residual
-first-use risk; adding out-of-band fingerprint confirmation at pairing; or declining Samsung for V1.
-That is a product-owner decision on a non-negotiable invariant and is **not** made here. Per the
+first-use risk; using out-of-band identity confirmation **only if the same value is independently
+authenticated on the TV/vendor side**; or declining Samsung for V1. A fingerprint displayed only by
+the phone is derived from the unauthenticated connection and is therefore circular, not a first-use
+MITM mitigation. That is a product-owner decision on a non-negotiable invariant and is **not** made here. Per the
 repository decision process it is recorded as an open conflict, and ADR-0005's accepted
 product-direction status is **not** reversed on these grounds.
 
