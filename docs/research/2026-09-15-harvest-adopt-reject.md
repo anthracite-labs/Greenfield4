@@ -164,16 +164,37 @@ than invitations for another literature survey.
 
 ### Hardware remains load-bearing where source cannot answer the device
 
-Do not remove or replace the existing hardware rows that establish:
+The full matrix remains mandatory **before release support is labelled Tested**, but Issue #14
+separates that release gate from the smaller set that must be known before discovery can close.
 
-- **Samsung:** certificate/SPKI stability across reboot/firmware/reset, token behavior where it
-  affects recovery, different-TV/substituted-cert fail-closed behavior, and the actual first-use
-  exposure shape.
-- **Android TV:** contemporary firmware's server-side Secret enforcement; server-certificate
-  stability across firmware/reset; substituted-cert fail-closed behavior; and the
-  independent-trial/retry/session facts that determine the practical strength of the 8-bit OOB
-  gate.
-- **Both:** minimum two model/firmware generations before broad “Tested” support claims.
+**Decision-critical discovery probes:**
+
+- **Android TV:** ATV-17a/17b on ATV-A and ATV-17d on ATV-B — establish whether contemporary target
+  firmware performs the server-side full-Secret verification documented by historical AOSP.
+- **Android TV:** ATV-21/22/23 — establish the dominant local prefix-failure loop, whether the next
+  trial can be made cryptographically independent, and whether the TV observes that local failure.
+- **Android TV:** ATV-26 — establish whether an unauthenticated LAN peer can cause a fresh pairing
+  code/session without on-device user action.
+- **Android TV:** ATV-29 — count independent trials obtainable inside one user-mediated pairing
+  session.
+- **Conditional:** run ATV-24/25 as discovery probes only if ATV-23 shows the TV observes local
+  failures and can therefore plausibly throttle that loop. Run ATV-27/28 only if the initiation or
+  code-lifetime facts remain necessary to bound the result.
+
+Samsung's structural first-use conclusion does **not** depend on running SAM-17(a): the source-level
+problem is the absence of an independently authenticated TV identity on first contact. Its discovery
+gate is therefore the product-owner residual-risk disposition, not another attempt to empirically
+re-prove the same absence. Samsung certificate stability, substituted-cert handling, token/recovery
+behaviour, and the remaining Android reconnect/persistence rows remain important implementation and
+release-conformance work.
+
+**Release hardware still establishes:**
+
+- Samsung certificate/SPKI stability across reboot/firmware/reset, token/recovery behaviour,
+  different-TV/substituted-cert fail-closed behavior, and broad model coverage;
+- Android server-certificate stability across firmware/reset, substituted-cert fail-closed behavior,
+  credential/recovery behaviour, and broad model coverage;
+- minimum two model/firmware generations per ecosystem before broad “Tested” claims.
 
 Long-duration observations (for example token rotation) may continue as release/field evidence; they
 must not be replaced with an OSS author's anecdote.
