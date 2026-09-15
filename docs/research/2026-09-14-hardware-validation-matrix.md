@@ -17,6 +17,28 @@ vague "needs hardware validation" notes.
 **Nothing here is a result.** A test is only "passed" once it has been executed against a real
 device and the recorded evidence exists. Until then every row is `NOT RUN`.
 
+## 2026-09-15 evidence-reuse policy
+
+Issue #14 reconciled this catalogue against maintained open-source implementations and upstream
+sources in [2026-09-15-harvest-adopt-reject.md](2026-09-15-harvest-adopt-reject.md).
+
+The rows remain recorded and remain `NOT RUN`. The reconciliation changes only whether a row is
+an open research question:
+
+- established discovery, pairing, command-framing, and client credential-lifecycle mechanics are
+  **HARVESTED**; later Greenfield runs are integration/release conformance checks rather than another
+  literature survey;
+- Greenfield-specific server-identity pinning and identity-change handling are **ADOPTED** and still
+  require our own physical evidence;
+- common compatibility shortcuts that remove peer verification or store pairing material
+  unprotected are **REJECTED** as Greenfield baselines;
+- device-side facts that source cannot establish remain **HARDWARE-REQUIRED**, including
+  contemporary Android TV Secret enforcement, certificate behavior across update/reset, Samsung
+  first-use behavior, and Android independent-trial/retry/session controls.
+
+Open-source evidence can close a research unknown; it cannot mark a Greenfield hardware row Passed
+or Tested.
+
 ## Required environment
 
 ### Devices
