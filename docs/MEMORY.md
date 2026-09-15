@@ -689,3 +689,30 @@ conflict stays an open product-owner decision; ADR-0005, `config/project.env`, t
 lifecycle state, and every `[HARDWARE-required]` caveat are untouched.
 
 **Issue:** #11 · **PR:** #12 (body rewritten to current state; still open, not self-merged)
+
+
+## 2026-09-15 — Harvest / Adopt / Reject reconciliation (issue #13, branch arena/issue-13-harvest-reconcile)
+
+**Done:** Reconciled the supplied harvest package against Greenfield4, recorded the results in
+`docs/research/2026-09-15-harvest-adopt-reject.md`, and updated PRODUCT.md plus the existing IR and
+security research. No lifecycle or application-stack change was made and no hardware result was claimed.
+
+**Verified:** The uploaded ZIP SHA-256 was checked locally. Pinned GitHub sources and current
+Android, Samsung, Roku and AOSP upstream sources were checked. A local repository checkout failed
+because this sandbox could not resolve GitHub DNS, so `scripts/verify.sh` was **NOT RUN locally**;
+the pull-request GitHub Actions gate is the independent executable verification.
+
+**Learned:** Android TV reconnect certificate pinning, protected Android TV client-key storage, and
+protected Samsung token storage are existing OSS implementation patterns rather than open feasibility
+questions. Samsung first-use authentication remains unresolved. Flipper-IRDB has an explicit CC0
+provenance boundary at commit `2319685`; earlier content cannot simply be assumed covered.
+IRremoteESP8266 is LGPL-2.1, not Apache-2.0. Current Roku documentation rejects third-party/mobile
+ECP use. A phone-only Samsung fingerprint display is circular unless the same identity is
+independently authenticated on the TV/vendor side.
+
+**Dead ends:** Additional generic client-library comparisons for already-demonstrated storage,
+pinning and discovery patterns would repeat solved work. Local verification is blocked here by DNS.
+
+**Next:** Use PR CI as the gate. Remaining discovery work is Samsung first-use product disposition,
+real-TV security/compatibility evidence, vendor/legal review, a provenance-clean V1 IR seed,
+product naming, and an explicit casting/mirroring V1 scope decision.
