@@ -742,3 +742,24 @@ Android TV protocol research.
 
 **Next:** Let PR #15 CI re-run on the corrected head, keep the PR open for independent review, and
 do not start another generic client-library survey for the harvested mechanics.
+
+
+## 2026-09-15 — Harvest provenance pin + verification checkpoint (issue #13, PR #15)
+
+**Done:** Replaced the last floating IR source references with exact commits:
+IRremoteESP8266 `1e2f0f3ef0a93cbf2a8ddb2e95130f8f4c584b3f` (LGPL-2.1 evidence) and
+lirc-remotes `e4a758048908b7e1a571dc2a89c409a33398f2f6` (`xml`, unresolved corpus
+license evidence). No product or lifecycle decision changed.
+
+**Verified:** PR head `eb5ed3eb39e91d96b139b6a508017aa65d7ad72c` → GitHub Actions
+`verify` run #35010162033 **PASS**; both Foundation gate and Independent checks completed
+successfully. The immediately preceding corrected head's detailed gate output was 17 passed,
+0 failed, 1 advisory skip (AgentShield scanned no applicable files), with selftest 128/128.
+
+**Learned:** Reproducible research needs pinned revisions even for a source used only to correct a
+license claim; “current master” is not durable provenance.
+
+**Dead ends:** None.
+
+**Next:** This ledger-only commit should receive the same PR CI gate; leave PR #15 open for
+independent review and move discovery effort only to the remaining product/legal/hardware decisions.
