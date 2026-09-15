@@ -645,3 +645,47 @@ risk**, the Samsung first-use conflict stays an open product-owner decision, ADR
 `config/project.env` stay untouched, and no hardware test was executed.
 
 **Issue:** #11 · **PR:** #12 (body rewritten to current state each round; still open, not self-merged)
+
+---
+
+## 2026-09-15 — Correction round 5: authentication direction in §3.1, and the last "per attempt" forms
+
+**Context.** Review `5211873875` on head `c53ed6d`: the detailed protocol analysis in §§2.7.2–2.7.3
+was already right, but the **decision-output summary in §3.1 had the two pairing checks on the wrong
+sides**. Verified against the pinned sources before editing, not on the review's word.
+
+**Finding 1 (HIGH) — direction, confirmed from AOSP `7c99785`.**
+- **TV → client** is the **phone's local OOB check**. `PairingSession.java` (blob `8baccf4`)
+  `doPairingPhase()`, `isInputDevice()` branch: `mChallenge.checkGamma(userGamma)` →
+  `BadSecretException("Secret failed local check.")` **before** `SecretMessage` is sent. C++
+  `pairingsession.cc` (blob `011c913`) `SetSecret()` mirrors it: "Secret failed local check",
+  `return false`, **nothing transmitted**. `PoloChallengeResponse.java` (blob `81095fd`)
+  `checkGamma()` = `Arrays.equals(gamma, getGamma(nonce))`.
+- **client → TV** is the **TV's full-alpha verification**. `PairingSession.java` output branch:
+  regenerate nonce → `getGamma` → display → receive `SecretMessage` →
+  `Arrays.equals(localAlpha, inbandAlpha)` → `BadSecretException` on mismatch → `SecretAck`
+  **only after success**. C++ `OnSecretMessage` → `VerifySecret()` → `kErrorInvalidChallengeResponse`.
+§3.1 now states both correctly. The client certificate is retained as client identity but is
+explicitly **not** a substitute for the pairing check. Conformance stays `[HARDWARE-required]`.
+**Lesson:** a summary table is a second place to get a fact wrong. When a detailed section and its
+executive summary disagree, check *both* against the source — and assume the summary is the one that
+drifted, because it is edited under time pressure and read most often.
+
+**Finding 2 (MEDIUM) — three live `8 bits/attempt` statements** in §2.13 First-use trust, §3.1
+First-use MITM, and the §3.1 prose. Replaced with **"8 bits per independent pairing trial"**, and
+§3.1 gained an explicit guard: retries against unchanged digest inputs are **deterministic**, a fresh
+~1/256 chance requires a relevant input to change, and whether enough independent trials are
+obtainable stays `[HARDWARE-required]`. Added because a summary is exactly where a conditional
+probability gets misread as a retry-rate claim. One benign `per attempt` in ATV-29 normalised to
+`per trial`.
+
+**Grep after the fix:** `8 bits/attempt`, `8-bit-per-attempt`, `1/256 per retry`, `bits/attempt` →
+**no matches**. `1/256 per attempt` → one match, `docs/MEMORY.md:599`, inside a round-4 **withdrawal
+notice** (allowed to remain by the reviewer, since it is clearly marked as corrected).
+
+**Deliberately preserved:** the 8-bit conclusion was **not** softened because no attack was executed
+— it stays `[ANALYSIS — derived]`; no hardware test was executed or claimed; Samsung's first-use
+conflict stays an open product-owner decision; ADR-0005, `config/project.env`, the discovery
+lifecycle state, and every `[HARDWARE-required]` caveat are untouched.
+
+**Issue:** #11 · **PR:** #12 (body rewritten to current state; still open, not self-merged)
