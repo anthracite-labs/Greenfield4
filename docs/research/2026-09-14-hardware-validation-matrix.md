@@ -39,6 +39,27 @@ an open research question:
 Open-source evidence can close a research unknown; it cannot mark a Greenfield hardware row Passed
 or Tested.
 
+### Discovery gate versus release-conformance gate
+
+Issue #14 deliberately **does not require this entire catalogue to run before architecture**.
+The full catalogue remains the release-support evidence base. Discovery needs only the device-side
+facts that can still change the product/security decision:
+
+- **Required before discovery exit:** ATV-17a/17b on ATV-A, ATV-17d on ATV-B, ATV-21, ATV-22,
+  ATV-23, ATV-26, and ATV-29.
+- **Conditional before discovery exit:** ATV-24/25 only if ATV-23 shows the TV sees local failures;
+  ATV-27/28 only if the initiation/code-lifetime facts are still needed to bound independent trials.
+- **Not a discovery blocker:** ordinary pairing/discovery/reconnect mechanics already harvested from
+  credible OSS, plus Samsung pin persistence/recovery and both ecosystems' broad model/firmware
+  coverage. Those rows remain mandatory implementation/release conformance before support is called
+  **Tested**.
+- **Samsung first-use:** SAM-17(a) may still be useful release/security evidence, but discovery does
+  not need it to prove the already-recorded structural fact that the stock remote path has no
+  independently authenticated TV identity on first contact. The remaining discovery action is the
+  product-owner residual-risk decision.
+
+This staging reduces duplicated research without converting any unexecuted row into evidence.
+
 ## Required environment
 
 ### Devices
