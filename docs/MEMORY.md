@@ -399,3 +399,293 @@ moving the head.
 **Rule for future sessions:** never commit "CI is green on head `<sha>`". Write
 the local results and the per-commit CI facts into memory, and put the
 final-head witness in the PR body after the last push.
+
+## 2026-09-14 — Security trust-model validation for Samsung Tizen and Android TV Remote v2 (issue #11, branch arena/01a0a0e4-greenfield4)
+
+**Context:** Base `main` at `92730e6` (PR #10 merged). ADR-0005 accepted for product direction only, with security recorded PARTIAL and explicitly part of what the product owner accepted. This session was asked to validate the two trust models with primary evidence and to separate protocol facts from hardware-dependent designs. Discovery research only — not architecture, not implementation.
+
+**Preflight (all verified from tools, not assumed):**
+- PR #10 MERGED (`92730e6`, 2026-09-14T17:06:22Z); ADR-0005 `accepted`; `PROJECT_PHASE=discovery`, `ALLOW_APP_STACK=0`, `STACK_DECISION_ADR=` empty.
+- PR #9 was an obsolete duplicate: same issue (#8), same body text ("Closes #8"), same substantive files, opened 16:21:53Z and left `mergeable: CONFLICTING` / `mergeStateStatus: DIRTY` after PR #10 merged. Confirmed by reading both PR bodies and diffs. **Closed PR #9 as superseded with a factual comment; not merged.**
+- No open issue covered this work (all issues #1–#8 closed), so created **issue #11** with 16 acceptance criteria *before* writing any durable conclusion.
+
+**Primary sources read at pinned refs** (all via `gh api ... ?ref=<pinned>` and decoded in this session):
+- `xchwarze/samsung-tv-ws-api` tag `v3.0.6` — `connection.py`, `async_connection.py`, `helper.py`, `remote.py`, `README.md`.
+- `kud/androidtv-remote` commit `5a05d73eb477` (v0.1.2) — `pairing-manager.ts`, `remote-manager.ts`, `certificate-generator.ts`, `pairing-message-manager.ts`, `README.md`, `docs/index.mdx`, `test/digest.test.ts`.
+- `tronikos/androidtvremote2` commit `b09f21432ba3` — `pairing.py`, `androidtv_remote.py`, `base.py`. Used as an **independent cross-check** on the Android TV digest.
+
+**What was actually established (new, beyond the previous session):**
+- **Samsung**: `CERT_NONE` is in **both** paths — sync `connection.py` *and* async `helper.get_ssl_context()` (which additionally sets `check_hostname = False`). The previous session recorded only the sync line.
+- **Samsung**: the token is attached **only when `ssl and token is not None`**, so on plaintext port 8001 the reference client sends no token at all. "A token exists" does not imply the transport is authenticated.
+- **Samsung**: nothing binds the token to any certificate, key, or device identity — it is a pure bearer secret. First-use MITM resistance therefore **not established**.
+- **Android TV**: the pairing code is **6 hex symbols** (protocol negotiates `ENCODING_TYPE_HEXADECIMAL`, `symbolLength: 6`), not a decimal PIN; `androidtvremote2` enforces `len == 6` and hex-parseability. The `"123456"` in the README is six chars that happen to be valid hex.
+- **Android TV**: the digest is `SHA-256(clientMod || "0"+clientExp || serverMod || "0"+serverExp || code[2:])`, and `code[0:2]` is an **8-bit check byte** compared to `hash[0]`. Both implementations agree byte-for-byte. So the one-byte check is a cheap sanity check, **not** the security mechanism — the mechanism is the full 32-byte secret sent to the TV.
+- **Android TV**: the TV certificate subject carries name + MAC (`CN=atvremote/.../XX:XX:XX:XX:XX:XX`). Useful as a label; **not** an authenticator, because it is asserted by the very certificate being validated (circular).
+- **Android TV**: neither reference client persists any **server** identity, so reconnect is unprotected in both. But fail-closed pinning is viable **without** any global trust-all mode (use the paired self-signed cert as its own trust anchor).
+- **Neither ecosystem was upgraded.** Both remain PARTIAL; both FAIL the identity-change and refuse-unsafe-connection invariants as shipped by their reference clients.
+
+**Surprises / things that cut against the earlier write-up:**
+1. The Android TV binding is real and cryptographically meaningful, but whether the **TV enforces** it is closed-firmware and **unproven**. I deliberately did not promote this from inference to VERIFIED even though the design is clear from two independent clients.
+2. `kud`'s `sendCode` has a genuine defect: `hexStringToBytes` is applied to the raw code while the digest uses `code.slice(2)`. Confirmed with Node 22 — `hexStringToBytes("0x1A2B3C")` returns `[NaN, 26, 43, 60]`, so a `0x`-prefixed code can never pass the check, and an unprefixed code compares the wrong byte. `androidtvremote2` handles this correctly. Reference-implementation defect, not a protocol flaw — but a warning that this digest must be tested against real hardware, not ported on faith.
+3. Samsung's first-use exposure is **structural, not fixable by pinning**: TOFU has no prior fingerprint at first pairing. This is a genuine conflict with a non-negotiable PRODUCT.md invariant and could not be resolved by more research.
+
+**Recorded as an open conflict for product-owner decision (deliberately NOT resolved here):** Samsung first-use MITM resistance cannot be achieved by TOFU alone. Options recorded: accept documented residual risk; add out-of-band fingerprint confirmation; or decline Samsung for V1. Routed to the product owner rather than handled by weakening the requirement or reversing ADR-0005.
+
+**Did not do:** did not touch `config/project.env`; did not change ADR-0005 (decision and status are unchanged; only the research docs were sharpened); did not weaken any PRODUCT.md or DOMAIN.md requirement; did not execute a single hardware test; did not reach any vendor portal (egress allowlist) — reported as reduced coverage.
+
+**Artifacts:**
+- `docs/research/2026-09-14-security-trust-model.md` (new) — the main deliverable; per-ecosystem, labelled evidence, five separate trust concerns, mapped against named invariants.
+- `docs/research/2026-09-14-hardware-validation-matrix.md` (new) — 17 Samsung + 20 Android TV tests, all `NOT RUN`.
+- `docs/plans/0011-security-trust-validation.md` (new) — plan per planning skill.
+- `docs/PRODUCT.md` — two research-checklist rows sharpened, one new open-conflict row added, exit criteria updated. No requirement weakened.
+- `docs/research/2026-09-14-ecosystem-evidence.md` — pointer added plus two corrections (async `CERT_NONE`; hex code, not decimal PIN).
+
+**Next (highest value first):**
+- Run **ATV-17** (substitute a certificate during pairing) — it is the single decisive test: it settles whether the Android TV digest binding is actually enforced, which is the largest open security question on either track.
+- Then **ATV-18**, **SAM-17**, and the firmware-update stability tests (**SAM-13 / ATV-13**) — the last group decides whether pinning is shippable or merely theoretical.
+- Get the product-owner decision on the Samsung first-use conflict; do not let it sit as an implicit acceptance.
+- Still open and untouched: vendor legal/terms (needs human portal access), IRDB/LIRC licensing, naming, casting PARTIAL, voice NOT VERIFIED.
+- Do **not** move to `architecture` and do **not** call either ecosystem shipping-ready.
+
+**Issue:** #11
+**PR:** opened from `arena/01a0a0e4-greenfield4`, left open for independent review, not self-merged.
+
+**Correction to the entry above (appended 2026-09-14, after independent review of PR #12 — this
+replaces specific claims in the previous entry; the previous entry is left intact as history).**
+
+**What changed and why.** ChatGPT's independent review on PR #12 (CHANGES_REQUESTED,
+2026-09-14T20:08:27Z) identified that I had missed an accessible primary source and had overstated
+three things. The review was right on all counts. Corrections applied:
+
+1. **I missed the AOSP pairing-protocol source, and it changed the Android TV conclusion.**
+   `android.googlesource.com/platform/external/google-tv-pairing-protocol` at commit `7c99785` was
+   reachable and implements **both roles**. `PoloChallengeResponse.getAlpha()` is
+   `SHA-256(clientMod ‖ clientExp ‖ serverMod ‖ serverExp ‖ nonce)`; `getGamma()` is
+   `alpha-prefix ‖ nonce` (`new byte[nonce.length * 2]`, copying alpha then nonce). Decisively, the
+   **output-device (TV) path verifies server-side**: `PairingSession.doPairingPhase()` computes
+   `localAlpha` and `Arrays.equals(localAlpha, inbandAlpha)`, throwing `BadSecretException` on
+   mismatch; the C++ `OnSecretMessage` calls `VerifySecret()` and on failure sends
+   `kErrorInvalidChallengeResponse`. **SecretAck is sent only after that comparison succeeds.**
+   Blobs: `81095fd` (PoloChallengeResponse.java), `8baccf4` (PairingSession.java),
+   `011c913` (pairingsession.cc).
+   **Removed:** my claims that TV-side enforcement "is not something a client can prove", that no
+   server-side implementation was available, and the "a code that nothing verifies would be
+   pointless" inference. All three were wrong.
+   **Kept separate:** this is **[VERIFIED — protocol]**. Whether *contemporary firmware* enforces it
+   is **[HARDWARE-REQUIRED]** — the Java files are ©2009 and the C++ ©2012. I did not over-correct:
+   Android TV stays PARTIAL because device conformance, reconnect identity persistence, and hardware
+   behaviour are all still unproven.
+
+2. **My "kud genuine defect" claim was wrong and is withdrawn.** For a valid six-hex-symbol code the
+   byte split is correct Polo gamma layout, confirmed by `getGamma()`. `0x1A2B3C` is eight characters
+   and is **not a valid pairing code**, so behaviour on it is a malformed-input/validation issue, not
+   a protocol flaw. Narrowed to: `kud` lacks explicit six-hex-symbol input validation and handles
+   malformed `0x…` input poorly. I had presented invalid-input behaviour as evidence that valid
+   handling was broken — a real error in reasoning.
+
+3. **Samsung server-side claims were overstated.** "Pure bearer credential / whoever holds it can act
+   as the paired client" and "8001 is an unauthenticated endpoint" are statements about **server**
+   behaviour that a client library cannot prove. Relabelled: no cryptographic binding is
+   **[VERIFIED — client]**; the bearer-token consequence is **[INFERRED]**; the TV's actual
+   association rule is **[HARDWARE-REQUIRED]** / **[UNRESOLVED]**. The Samsung **first-use** finding
+   is unchanged and was not weakened — it rests on the absence of an authenticated TV identity at
+   first connection, which holds regardless of what the server does with the token afterwards.
+
+4. **ATV-17 was diagnostically invalid and was redesigned into ATV-17a–d.** A generic terminating MITM
+   can fail at the client's local `checkGamma` (which runs *before* transmission) and never reach the
+   TV, so "pairing failed" could never prove server-side verification. The decisive test **ATV-17b
+   needs no interception at all**: our own instrumented client reads gamma from the TV and transmits a
+   deliberately corrupted Secret directly, so the TV's response unambiguously reveals whether it
+   verifies. 17a validates the harness, 17c only classifies the failure point, 17d repeats on a second
+   device generation.
+
+5. **PRODUCT.md had the governance/exit-criteria paragraph twice verbatim** (my earlier restore had
+   appended it again). Deduplicated 2 → 1.
+
+**Lesson to carry forward.** "Two independent client implementations agree" is corroboration of
+*client* behaviour only — never evidence of *server* behaviour. Before concluding "the peer's
+behaviour cannot be known", search for the protocol's own reference implementation; and before
+calling something a defect, check whether the input was ever in contract.
+
+**Not changed:** ADR-0005 status and decision (untouched); `config/project.env` (unchanged, phase
+still discovery); no requirement in PRODUCT.md or DOMAIN.md weakened; the Samsung first-use conflict
+remains an open product-owner decision, not resolved here; no hardware test executed.
+
+**Issue:** #11 · **PR:** #12 (updated in place; still open, not self-merged)
+
+**Correction to the entry above (appended 2026-09-15, after the second independent review of PR #12 —
+this replaces a specific interpretation; earlier entries are left intact as history).**
+
+**What the previous interpretation got wrong.** I had written that the deployed Android TV 8-bit
+alpha-prefix check is "a cheap client-side sanity check, not the security mechanism", that "the
+security property derives from … not from the prefix width", and that the full 32-byte alpha is the
+security mechanism. **That was backwards on the part that matters for first-use MITM.** The reviewer
+was right and I verified it against the pinned sources rather than just accepting it.
+
+Walking a terminating active MITM through the protocol makes the error concrete. With two
+terminated legs the phone computes `alpha_phone = H(K_C, K_M1, N)` and the TV computes
+`alpha_TV = H(K_M2, K_S, N)`. The *only* thing that can reveal that the phone's observed key
+material differs from the TV's is the alpha prefix, which reaches the phone **through the user**,
+not through the network. So the prefix **is** the out-of-band authenticator and its width **is**
+security-critical. The full 32-byte alpha is sent in-band over the channel whose integrity is in
+question; all its inputs except the nonce are public certificates; and once the attacker clears the
+prefix gate and observes one alpha, the 16-bit nonce falls to a 2^16 offline search (milliseconds),
+after which he computes each leg's alpha independently and both verifications pass.
+
+**Corrected evidence.** Deployed gamma = 8-bit alpha prefix ‖ 16-bit nonce
+[VERIFIED — deployed client]. AOSP `getGamma()` = alpha-prefix ‖ nonce with the prefix
+`nonce.length` bytes wide [VERIFIED — protocol/reference, blob `81095fd`] — i.e. the structure
+matches but deployed carries 8 bits where that formula would give 16. AOSP `extractNonce()`
+rejects odd-length gamma, so the deployed 3-byte gamma is not wire-compatible with that reference
+build. AOSP's own symbol/byte arithmetic (`symbolLength/2` then `/symbolsPerByte()`) is internally
+inconsistent and is quoted, not relied on. Net result: **8 bits of out-of-band authentication per
+pairing attempt**; each retry gives an independent 1/256, so ~10^2 attempts to expected success if
+unthrottled.
+
+**Why the classification changed.** Because digest length and out-of-band entropy are different
+quantities. "The server verifies a 256-bit alpha" is true and was never in doubt; it does **not**
+imply 256 bits of first-use authentication. Conflating them would have let a future architecture or
+product decision read Android TV as cryptographically strong at first use. It is a **bounded
+residual risk** — materially stronger than Samsung (no user-transferred code at all), not
+fundamentally unsafe, and not strong enough to meet PRODUCT.md's bar on its own.
+
+**New unresolved question.** Practical attackability now hinges on controls no source can answer:
+attempts per displayed code, whether failure rotates the code, retry delay, rate limiting,
+lockout/backoff persistence, code lifetime, and whether a LAN peer can start pairing unattended.
+Added hardware tests **ATV-21 … ATV-28** for exactly these, all NOT EXECUTED.
+
+**Also fixed this round.** ATV-17d now runs the baseline **and** the corrupted-Secret test on ATV-B,
+because a clean baseline on a second device proves harness portability, not server verification;
+results are explicitly per-device/per-firmware and must not be generalised. Samsung §1.4 was
+reconciled with §1.7 — the reference client *presents* an opaque token [VERIFIED — client], bearer
+semantics are [INFERRED], and the TV's server-side association rule is [UNRESOLVED]/[HARDWARE-required];
+it is no longer stated as VERIFIED that simple possession authenticates the client to every target
+Samsung TV. The Samsung first-use finding is unchanged.
+
+**Unchanged:** ADR-0005 status and decision (untouched); `config/project.env`; every PRODUCT.md and
+DOMAIN.md requirement; the Samsung first-use conflict as an open product-owner decision. No hardware
+test executed. No interception performed.
+
+**Lesson to carry forward.** When a protocol has both an out-of-band value and an in-band digest,
+ask separately: *what does each authenticate, over which channel, against which adversary?* An
+in-band digest sent over the untrusted channel cannot authenticate the endpoints of that channel.
+
+**Issue:** #11 · **PR:** #12 (body rewritten to current state; still open, not self-merged)
+
+---
+
+## 2026-09-15 — Correction round 4: trial independence, the local retry path, and per-leg vs cross-leg binding
+
+**Context.** Three further independent reviews of PR #12 (all against head `26978f2`) accepted the
+8-bit out-of-band conclusion but found it was **quantified and tested wrongly**. All three reviews
+were checked against the pinned sources before editing; none of the reviewer claims was accepted on
+assertion alone.
+
+**Finding 1 — §2.7.5 contradicted §2.7.6 (HIGH).** §2.7.5 still said an attacker "changes the
+client's alpha but not the TV's, and the two cannot match", so first-use MITM is "resisted by
+construction". That is **withdrawn**. The two alphas are computed over different key material
+*by design* in a terminating-MITM setup and are **not required to match each other**: after the
+8-bit gate passes the attacker supplies each leg with the alpha that leg expects. Full-alpha
+equality authenticates **each leg**; it does **not** bind two separately terminated legs. The old
+statement is true only for a naive/transparent relay, which cannot read or modify traffic either.
+**Lesson:** *per-leg authentication* and *cross-leg binding* are different properties; verifying a
+digest over an untrusted channel never binds the two ends of that channel together.
+
+**Finding 2 — §2.8 was backwards (HIGH).** It said the compensation is server-side "so it does not
+depend on the client's local one-byte check". Withdrawn and reversed. Server-side full-alpha
+verification is **necessary** to authenticate the Secret on the TV leg but **not sufficient** to bind
+the legs; the client's local prefix check is the **only** out-of-band cross-leg authenticator.
+
+**Finding 3 — "per retry" was not established (MEDIUM→HIGH).** All `1/256 per attempt/retry`
+language replaced by **~1/256 per independent pairing trial**. An *independent trial* requires an
+alpha-digest input to change (`K_C`, `K_M1`, `K_M2`, `K_S`, `N`, or a new session regenerating one);
+re-entering the same gamma against unchanged key material is **deterministic**. The claim that
+"each retry generates a fresh nonce" is **withdrawn** — AOSP generates the nonce once per
+output-device pairing phase, and nothing read establishes regeneration on rejection. Conditional
+arithmetic retained and labelled as conditional: geometric mean **256** independent trials, **~177**
+for ~50 % cumulative, ~590 for ~90 % — all contingent on the attacker obtaining that many, which is
+**[HARDWARE-required]** and deliberately left open.
+
+**Finding 4 — unmeasured timing claim (MEDIUM).** "2^16 … milliseconds" replaced with "at most
+**65,536 candidate hashes**; computationally small as an offline search", plus an explicit note that
+no timing was benchmarked. **BOOTSTRAP discipline: never state an unmeasured quantity as obtained
+fact.** The cryptographic conclusion never needed a speed number.
+
+**Finding 5 — ATV-21–23 measured the wrong path (HIGH).** 255/256 of failures occur **locally at the
+phone's prefix check, before any Secret is transmitted**, so the TV may observe nothing it could
+rate-limit. ATV-21–23 were redesigned around that path: ATV-21 = local prefix-mismatch retry loop
+(does the gamma/session survive, can the same gamma be re-entered, is the connection destroyed, what
+user action precedes the next trial); ATV-22 = **is the next trial cryptographically independent**
+(including deliberately rotating the attacker-controlled phone-facing key `M1` with the TV session
+held fixed); ATV-23 = **is the local failure visible to the TV at all**. Added ATV-29 (independent
+trials per user-mediated session) and ATV-30 (cost of ~177 trials, reported as extrapolation). The
+section now states that **TV-visible throttling (ATV-24–28) must not be credited as mitigation for
+the local loop unless ATV-23 shows the TV actually observes local failures.**
+**Lesson:** when a security bound depends on a retry loop, instrument the loop the attacker would
+actually use — including the failure mode the *defender* cannot see.
+
+**Finding 6 — consistency cleanup (LOW).** PRODUCT.md said 17 Samsung + **20** Android TV tests;
+corrected to 17 + **30** (33 rows counting ATV-17a–d). The `CLIENT-INST` environment row said
+"ATV-17a and ATV-17b **only**" but ATV-17d repeats both on ATV-B and the new ATV-21/22/29 also need
+it. Samsung §1.4's first VERIFIED bullet ("The client authenticates itself by presenting that opaque
+token") was a **server-side semantic under a client-only label**; replaced with "The client presents
+no reconnect credential beyond the opaque token; no certificate, public-key, or device-identity
+binding is visible in the client-observable path."
+
+**New product-security constraint carried forward (research conclusion, not implementation work).**
+The pairing gamma is **out-of-band, per-session, user-mediated material — not a stored credential**.
+A future Greenfield4 implementation **must not** silently cache or reuse a gamma across a new TLS
+peer identity or a new pairing session; preserving a legitimate ongoing session is acceptable,
+carrying a gamma to a different peer identity is not. Recorded in §2.7.7 as a `[DESIGN CONSTRAINT]`.
+
+**Deliberately preserved:** the 8-bit conclusion was **not** softened merely because no attack was
+executed — it stays `[ANALYSIS — derived]` (not `[VERIFIED]`), contemporary-firmware conformance and
+retry/session behaviour stay `[HARDWARE-required]`, Android TV stays **PARTIAL / bounded residual
+risk**, the Samsung first-use conflict stays an open product-owner decision, ADR-0005 and
+`config/project.env` stay untouched, and no hardware test was executed.
+
+**Issue:** #11 · **PR:** #12 (body rewritten to current state each round; still open, not self-merged)
+
+---
+
+## 2026-09-15 — Correction round 5: authentication direction in §3.1, and the last "per attempt" forms
+
+**Context.** Review `5211873875` on head `c53ed6d`: the detailed protocol analysis in §§2.7.2–2.7.3
+was already right, but the **decision-output summary in §3.1 had the two pairing checks on the wrong
+sides**. Verified against the pinned sources before editing, not on the review's word.
+
+**Finding 1 (HIGH) — direction, confirmed from AOSP `7c99785`.**
+- **TV → client** is the **phone's local OOB check**. `PairingSession.java` (blob `8baccf4`)
+  `doPairingPhase()`, `isInputDevice()` branch: `mChallenge.checkGamma(userGamma)` →
+  `BadSecretException("Secret failed local check.")` **before** `SecretMessage` is sent. C++
+  `pairingsession.cc` (blob `011c913`) `SetSecret()` mirrors it: "Secret failed local check",
+  `return false`, **nothing transmitted**. `PoloChallengeResponse.java` (blob `81095fd`)
+  `checkGamma()` = `Arrays.equals(gamma, getGamma(nonce))`.
+- **client → TV** is the **TV's full-alpha verification**. `PairingSession.java` output branch:
+  regenerate nonce → `getGamma` → display → receive `SecretMessage` →
+  `Arrays.equals(localAlpha, inbandAlpha)` → `BadSecretException` on mismatch → `SecretAck`
+  **only after success**. C++ `OnSecretMessage` → `VerifySecret()` → `kErrorInvalidChallengeResponse`.
+§3.1 now states both correctly. The client certificate is retained as client identity but is
+explicitly **not** a substitute for the pairing check. Conformance stays `[HARDWARE-required]`.
+**Lesson:** a summary table is a second place to get a fact wrong. When a detailed section and its
+executive summary disagree, check *both* against the source — and assume the summary is the one that
+drifted, because it is edited under time pressure and read most often.
+
+**Finding 2 (MEDIUM) — three live `8 bits/attempt` statements** in §2.13 First-use trust, §3.1
+First-use MITM, and the §3.1 prose. Replaced with **"8 bits per independent pairing trial"**, and
+§3.1 gained an explicit guard: retries against unchanged digest inputs are **deterministic**, a fresh
+~1/256 chance requires a relevant input to change, and whether enough independent trials are
+obtainable stays `[HARDWARE-required]`. Added because a summary is exactly where a conditional
+probability gets misread as a retry-rate claim. One benign `per attempt` in ATV-29 normalised to
+`per trial`.
+
+**Grep after the fix:** `8 bits/attempt`, `8-bit-per-attempt`, `1/256 per retry`, `bits/attempt` →
+**no matches**. `1/256 per attempt` → one match, `docs/MEMORY.md:599`, inside a round-4 **withdrawal
+notice** (allowed to remain by the reviewer, since it is clearly marked as corrected).
+
+**Deliberately preserved:** the 8-bit conclusion was **not** softened because no attack was executed
+— it stays `[ANALYSIS — derived]`; no hardware test was executed or claimed; Samsung's first-use
+conflict stays an open product-owner decision; ADR-0005, `config/project.env`, the discovery
+lifecycle state, and every `[HARDWARE-required]` caveat are untouched.
+
+**Issue:** #11 · **PR:** #12 (body rewritten to current state; still open, not self-merged)
