@@ -689,3 +689,77 @@ conflict stays an open product-owner decision; ADR-0005, `config/project.env`, t
 lifecycle state, and every `[HARDWARE-required]` caveat are untouched.
 
 **Issue:** #11 · **PR:** #12 (body rewritten to current state; still open, not self-merged)
+
+
+## 2026-09-15 — Harvest / Adopt / Reject reconciliation (issue #13, branch arena/issue-13-harvest-reconcile)
+
+**Done:** Reconciled the supplied harvest package against Greenfield4, recorded the results in
+`docs/research/2026-09-15-harvest-adopt-reject.md`, and updated PRODUCT.md plus the existing IR and
+security research. No lifecycle or application-stack change was made and no hardware result was claimed.
+
+**Verified:** The uploaded ZIP SHA-256 was checked locally. Pinned GitHub sources and current
+Android, Samsung, Roku and AOSP upstream sources were checked. A local repository checkout failed
+because this sandbox could not resolve GitHub DNS, so `scripts/verify.sh` was **NOT RUN locally**;
+the pull-request GitHub Actions gate is the independent executable verification.
+
+**Learned:** Android TV reconnect certificate pinning, protected Android TV client-key storage, and
+protected Samsung token storage are existing OSS implementation patterns rather than open feasibility
+questions. Samsung first-use authentication remains unresolved. Flipper-IRDB has an explicit CC0
+provenance boundary at commit `2319685`; earlier content cannot simply be assumed covered.
+IRremoteESP8266 is LGPL-2.1, not Apache-2.0. Current Roku documentation rejects third-party/mobile
+ECP use. A phone-only Samsung fingerprint display is circular unless the same identity is
+independently authenticated on the TV/vendor side.
+
+**Dead ends:** Additional generic client-library comparisons for already-demonstrated storage,
+pinning and discovery patterns would repeat solved work. Local verification is blocked here by DNS.
+
+**Next:** Use PR CI as the gate. Remaining discovery work is Samsung first-use product disposition,
+real-TV security/compatibility evidence, vendor/legal review, a provenance-clean V1 IR seed,
+product naming, and an explicit casting/mirroring V1 scope decision.
+
+
+## 2026-09-15 — Harvest review correction: route is not identity (issue #13, PR #15)
+
+**Done:** Independent diff/source review found one overstatement in the Harvest record and corrected
+it in PRODUCT.md plus the security/reconciliation docs. ScreenCast proves exact Android TV
+server-certificate capture and reconnect verification, but its pin store is keyed by `host`/IP.
+TVgrip supplies the separate persisted-TV-record pattern. Greenfield4 therefore harvests the
+certificate-checking mechanism but explicitly binds the pin to its own paired-device record; route,
+mDNS name and MAC-like discovery metadata are not the cryptographic identity.
+
+**Verified:** Re-read ScreenCast @ `7e66bbe7`:
+`AndroidTvCertStore.getServerPin(host)` / `pinServer(host,...)`,
+`AndroidTvRemote` pair/connect/forget by `device.host`, and
+`AndroidTvPersistence` separately stores a stable device key plus last-known host. Re-read TVgrip
+merge `42a1c151`: `serverCertSha256` is a field on the persisted `TvDeviceEntity`/`TvDevice`.
+No hardware result is inferred from either implementation.
+
+**Learned:** Pinning feasibility and identity association are separate questions. A working pin check
+does not make the key used to look up that pin a trustworthy device identity.
+
+**Dead ends:** None. The correction strengthens the existing invariant rather than reopening broad
+Android TV protocol research.
+
+**Next:** Let PR #15 CI re-run on the corrected head, keep the PR open for independent review, and
+do not start another generic client-library survey for the harvested mechanics.
+
+
+## 2026-09-15 — Harvest provenance pin + verification checkpoint (issue #13, PR #15)
+
+**Done:** Replaced the last floating IR source references with exact commits:
+IRremoteESP8266 `1e2f0f3ef0a93cbf2a8ddb2e95130f8f4c584b3f` (LGPL-2.1 evidence) and
+lirc-remotes `e4a758048908b7e1a571dc2a89c409a33398f2f6` (`xml`, unresolved corpus
+license evidence). No product or lifecycle decision changed.
+
+**Verified:** PR head `eb5ed3eb39e91d96b139b6a508017aa65d7ad72c` → GitHub Actions
+`verify` run #35010162033 **PASS**; both Foundation gate and Independent checks completed
+successfully. The immediately preceding corrected head's detailed gate output was 17 passed,
+0 failed, 1 advisory skip (AgentShield scanned no applicable files), with selftest 128/128.
+
+**Learned:** Reproducible research needs pinned revisions even for a source used only to correct a
+license claim; “current master” is not durable provenance.
+
+**Dead ends:** None.
+
+**Next:** This ledger-only commit should receive the same PR CI gate; leave PR #15 open for
+independent review and move discovery effort only to the remaining product/legal/hardware decisions.

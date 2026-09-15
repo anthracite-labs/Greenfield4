@@ -101,3 +101,73 @@ Per PRODUCT.md power/failure and DOMAIN.md:
 - LIRC remotes mirror README [VERIFIED fetch_page raw.githubusercontent.com/probonopd/lirc-remotes/master/README.md], license null [VERIFIED gh api]
 - LIRC software license GPL-2.0-or-later example [VERIFIED web_search lirc.org/html/lirc-config-tool.html]
 - Previous secondary source that gave incorrect CC0 claim: infishark blog [SECONDARY ESTIMATE]
+
+
+---
+
+## 2026-09-15 harvest reconciliation addendum (issue #13)
+
+This addendum updates the **candidate-source set**, not the fixed product capability. It follows the
+Harvest / Adopt / Reject pass in
+[`2026-09-15-harvest-adopt-reject.md`](2026-09-15-harvest-adopt-reject.md).
+
+### Flipper-IRDB — new preferred low-obligation candidate, with a hard provenance boundary
+
+**Primary source:** `Lucaslhm/Flipper-IRDB` at
+`d126fb1b6f1e114c52b4a8c19839ea65e3a9c24d`.
+
+- GitHub repository metadata identifies the current repository license as **CC0-1.0**.
+- The root `LICENSE` contains the CC0 1.0 legal text.
+- The README says contributors agree to license submissions under CC0-1.0 **and explicitly states
+  that commits before `2319685` are not covered**.
+- Commit `2319685f2cbf0cd3f809609622cade14d24fb819` is dated 2025-08-07 and is titled
+  `feat: add LICENSE and add license note to README (#960)`.
+
+**Consequence:** the earlier candidate set was too narrow (IRDB + LIRC only), but the uploaded
+harvest pack's opposite claim — “Flipper-IRDB is public domain, no database licensing risk ever” —
+is also too broad.
+
+**HARVEST:** Flipper `.ir` format, naming conventions, post-cutover CC0 contribution policy, and
+the project as a source of candidate profiles.
+
+**ADOPT candidate:** prefer a curated V1 seed whose relevant file content can be shown to originate
+under the post-`2319685` CC0 policy (or is separately cleared). This can avoid IRDB's custom
+notification/attribution/copy obligations if coverage is adequate.
+
+**REJECT:** treating an unchanged pre-cutover file as CC0 merely because it exists in a repository
+whose root now contains a CC0 license. The project's own README prevents that inference.
+
+### LIRC — separate import format from bundled corpus
+
+The unresolved LIRC database license remains unresolved. The harvest pass found good precedent for
+**parsing user-supplied LIRC files**, but that does not license Greenfield4 to bundle the LIRC
+database.
+
+Therefore:
+- LIRC may remain a future/user-import **format**.
+- LIRC is still **not approved as a bundled V1 data source**.
+- Greenfield4 **does not need to solve LIRC corpus licensing as a discovery exit criterion** if a
+  provenance-clean Flipper-IRDB subset (or another approved source) provides sufficient V1 coverage.
+
+### IRRemoteESP8266 license correction
+
+The supplied matrix called `crankyoldgit/IRremoteESP8266` “Apache-2.0”. At pinned commit
+`1e2f0f3ef0a93cbf2a8ddb2e95130f8f4c584b3f`, GitHub repository metadata identifies it as
+**LGPL-2.1** and the repository carries `LICENSE.txt`. The LIRC mirror used for the unresolved
+corpus-license check is pinned at `e4a758048908b7e1a571dc2a89c409a33398f2f6` (`xml`).
+
+Its protocol behavior, supported-protocol catalogue and test-vector ideas remain useful **HARVEST**
+material, but any later code reuse/port must be reviewed against the actual LGPL terms. Discovery
+does not select a Kotlin codec module or authorize copying implementation code.
+
+### Updated V1 source order
+
+1. **First candidate:** provenance-clean Flipper-IRDB CC0 subset; validate TV coverage and command
+   quality on the hardware matrix.
+2. **Fallback candidate:** IRDB under its documented custom obligations, if explicitly accepted.
+3. **Do not bundle:** LIRC database until a primary license is established.
+4. **Interoperability only:** LIRC / IRPLUS / Flipper formats may be parsed for user-provided files
+   independently of whether their upstream corpora are bundled.
+
+This narrows the remaining IR work to **provenance filtering + coverage validation + source
+selection**. Another broad IR-database survey is not required unless these candidates fail coverage.

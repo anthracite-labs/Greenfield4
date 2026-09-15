@@ -1007,8 +1007,10 @@ One conflict is structural and cannot be closed by pinning:
 > connection *after* the first; it cannot protect the first.
 
 Resolving this needs a product decision among options that include: accepting a documented residual
-first-use risk; adding out-of-band fingerprint confirmation at pairing; or declining Samsung for V1.
-That is a product-owner decision on a non-negotiable invariant and is **not** made here. Per the
+first-use risk; using out-of-band identity confirmation **only if the same value is independently
+authenticated on the TV/vendor side**; or declining Samsung for V1. A fingerprint displayed only by
+the phone is derived from the unauthenticated connection and is therefore circular, not a first-use
+MITM mitigation. That is a product-owner decision on a non-negotiable invariant and is **not** made here. Per the
 repository decision process it is recorded as an open conflict, and ADR-0005's accepted
 product-direction status is **not** reversed on these grounds.
 
@@ -1028,6 +1030,80 @@ product-direction status is **not** reversed on these grounds.
 - No MITM, no TLS interception, and no traffic capture was performed. Every attack described is
   reasoned from source, not executed.
 - Vendor/legal validation remains open and is untouched by this document.
+
+
+## 2026-09-15 OSS implementation-precedent addendum (issue #13)
+
+This addendum changes the **engineering-feasibility evidence** for reconnect hardening. It does not
+upgrade either ecosystem to security-cleared, does not replace the hardware matrix, and does not
+change the first-use findings above.
+
+### Android TV reconnect pinning is now HARVEST evidence, not merely hypothetical
+
+At the time this trust model was first written, server-certificate pinning was labelled a
+`[PROPOSED MITIGATION]`. A second pass found direct implementation evidence on the same protocol:
+
+- `ddagunts/ScreenCast` at `7e66bbe7ae5cc64c012bbe4987940be67925d137`:
+  - `AndroidTvCertStore.kt` persists the per-install client cert/private key using AndroidX
+    `EncryptedFile` with a Keystore-derived AES-256-GCM master key;
+  - `AndroidTvPairingChannel.kt` captures the TV certificate SHA-256 during the 6467 pairing
+    session and returns it only after the pairing sequence reaches successful SecretAck handling;
+  - `AndroidTvSocketFactory.kt` performs exact SHA-256 comparison for an expected TV leaf
+    certificate on reconnect, closes the socket and throws on mismatch;
+  - `AndroidTvRemoteChannel.kt` uses that expected pin for the 6466 remote-control channel;
+  - **association caveat:** `AndroidTvCertStore.kt` stores the pin by `host`, while
+    `AndroidTvPersistence.kt` separately keeps a paired-device key and last-known host. ScreenCast
+    therefore proves exact reconnect verification, but its host/IP association is **not** adopted as
+    Greenfield4 device identity.
+- `mbir31/TVgrip` PR #2, merged as
+  `42a1c151de6fb6b86713ab30ec83962cd14e8cec`, records the same pattern: AndroidKeyStore client
+  identity, TV-certificate capture during pairing, per-TV encrypted fingerprint storage and a
+  pinned remote TLS context.
+
+These projects do **not** prove certificate stability across every target TV or firmware. They do
+settle the narrower question “can a Remote-v2 client capture a TV cert at pairing and fail closed on
+a different cert during later 6466 sessions?” — **yes, this pattern exists in working OSS source.**
+
+Accordingly, future discovery should not keep researching client-side pinning feasibility. The
+remaining evidence is **[HARDWARE-REQUIRED]**: stability across power/reboot/update/reset and
+Greenfield4's own implementation test when architecture permits application code.
+
+### Samsung certificate control and token storage are also solved engineering mechanics
+
+Two additional OSS precedents narrow the Samsung work without fixing its first-use trust gap:
+
+- `sturlese/tvremote-app` at `7880e2c026c102053ccfbfbf6a05b452fafa310d` stores Samsung pairing
+  tokens via `expo-secure-store`, separating them from ordinary device metadata. Secure phone-side
+  token persistence therefore does not require further discovery research.
+- `Perun85/Samsung.SmartTv.Client` at
+  `ceb0700282298c2f7be072d9a8bade005bdf6232` exposes
+  `IRemoteCertificateValidator` to registration and remote-control clients. Its default validator
+  accepts every certificate, but the extension point proves the client can inspect and decide on
+  the TV certificate rather than being forced into a process-global trust-all policy.
+
+Current openHAB Samsung code at `cc5aa9383f49f417df0dd1dea34a8b519e201961` still returns a
+`TrustAllTrustManager`, corroborating that trust-all is a common compatibility posture, **not** an
+authenticated identity design.
+
+This does not change §1.10/§1.11: no OSS or Samsung upstream source found in the second pass supplies
+an independently authenticated TV identity for the first stock Samsung remote-control connection.
+TOFU/pinning can harden reconnects after first pairing; it cannot authenticate first use.
+
+### Research-compression consequence
+
+Treat these as closed **feasibility** questions:
+
+- protected storage of Samsung tokens;
+- protected storage of Android TV client private keys;
+- capture of a TV certificate during Android TV pairing;
+- exact reconnect certificate verification and fail-closed mismatch behavior; TVgrip also shows a
+  per-TV record association, while ScreenCast's host-keyed association is explicitly **not** a
+  Greenfield pattern;
+- client-controlled certificate validation hooks for Samsung.
+
+Keep open only the questions that need product-owner, legal, or physical-device evidence. This is
+the Harvest / Adopt / Reject rule applied to security: harvest proven hardening patterns, adopt them
+only where they satisfy Greenfield4 invariants, and reject the common trust-all shortcuts.
 
 ## Related
 
