@@ -151,8 +151,10 @@ Therefore:
 
 ### IRRemoteESP8266 license correction
 
-The supplied matrix called `crankyoldgit/IRremoteESP8266` “Apache-2.0”. Current GitHub repository
-metadata instead identifies it as **LGPL-2.1**, and the repository carries `LICENSE.txt`.
+The supplied matrix called `crankyoldgit/IRremoteESP8266` “Apache-2.0”. At pinned commit
+`1e2f0f3ef0a93cbf2a8ddb2e95130f8f4c584b3f`, GitHub repository metadata identifies it as
+**LGPL-2.1** and the repository carries `LICENSE.txt`. The LIRC mirror used for the unresolved
+corpus-license check is pinned at `e4a758048908b7e1a571dc2a89c409a33398f2f6` (`xml`).
 
 Its protocol behavior, supported-protocol catalogue and test-vector ideas remain useful **HARVEST**
 material, but any later code reuse/port must be reviewed against the actual LGPL terms. Discovery
