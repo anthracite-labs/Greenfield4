@@ -240,6 +240,48 @@ That directly contradicts the uploaded matrix's green recommendation to build Ro
 research unless Roku changes that official restriction or Greenfield4's product/security scope
 changes.
 
+## Uploaded ADR / security-spec reconciliation
+
+The package marks nine ADRs as accepted. Those statuses are not imported into Greenfield4: they
+belong to a different proposed product architecture and are research input only.
+
+| Supplied decision | Greenfield4 disposition |
+| :-- | :-- |
+| Local-first, no backend, no account | **HARVEST → already adopted product requirement.** |
+| Apache-2.0 core / GPL module boundaries | **REJECT as current decision.** Application license and module boundaries wait for architecture; the package also mislabels IRremoteESP8266 as Apache-2.0. |
+| One TvAdapter interface / module per brand | **HARVEST abstraction principle; reject the concrete Kotlin/module contract during discovery.** |
+| IR honesty policy | **HARVEST → already adopted.** Runtime hardware/capability gating is fixed product behavior. |
+| Flipper-IRDB seed + imports + learn | **PARTIAL ADOPT.** Prefer a provenance-clean post-license Flipper subset; imports are useful; USB learning remains outside V1. |
+| TOFU + visible prompts + Keystore | **PARTIAL ADOPT / PARTIAL REJECT.** Protected secrets and fail-closed reconnect identity are adopted. A phone-only fingerprint display does not authenticate Samsung first use without an independent TV-side value. |
+| Premium IAP + donations | **REJECT as current decision.** PRODUCT.md keeps V1 free and defers business model. |
+| Omit mirroring from V1 | **Product decision required.** The rationale is useful, but current Greenfield scope still lists casting/mirroring as PARTIAL V1. |
+| ACRA self-hosted crash reporting | **HARVEST privacy posture; reject dependency choice now.** Exact telemetry library/endpoint waits for architecture. |
+| Fixed Android permission list | **REJECT as frozen manifest.** Current Android upstream changes local-network permission behavior at API 37; exact manifest belongs to target-SDK architecture. |
+| Keystore for persisted secrets | **HARVEST → adopt behavior.** Exact Android API remains architecture work. |
+| No listening ports in V1 | **Consistent with core remote scope**, but must be revisited if casting/mirroring is explicitly retained and requires a phone-side server. |
+| F-Droid / reproducible build / no tracker rules | **HARVEST release criteria**, not discovery exit gates. |
+
+## Authoritative upstream checkpoints
+
+The second pass re-checked primary platform/vendor sources where they can override OSS conclusions:
+
+- Android ConsumerIrManager confirms runtime emitter detection, carrier-range queries, and IR pattern
+  transmission. Built-in Android IR feasibility is closed.
+- Android NsdManager confirms DNS-SD over mDNS. Current API 37 guidance also introduces local-network
+  access controls and service-scoped picker flows, so the package's fixed permission manifest is not
+  adopted.
+- The AOSP google-tv-pairing-protocol source at `7c99785` remains the available authoritative
+  reference for both pairing roles and Secret verification.
+- Samsung Smart View SDK documentation describes a sender + receiver-app model and TLS/security
+  mode for that SDK. It does not document the stock `samsung.remote.control` WebSocket used by
+  generic remote clients, so it does not resolve Samsung first-use trust or legal-clear that channel.
+- Current Roku ECP documentation explicitly says ECP commands may not be sent from third-party
+  platforms such as mobile applications. This authoritatively rejects the package's “Roku build
+  first” recommendation for Greenfield4.
+- Current Google developer material found in this pass documents Cast / Cast Connect sender-receiver
+  APIs, not a supported public API for third-party mobile apps to use the reverse-engineered Android
+  TV Remote-v2 control channel. OSS feasibility must not be described as vendor API support.
+
 ## Research compression rule for the next phase
 
 The following are now treated as **solved engineering patterns**, not open discovery research:
