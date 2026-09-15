@@ -886,7 +886,7 @@ persistence, and real-hardware behaviour all remain unproven (§2.9–§2.11).
 | TLS transport validation | **UNSAFE / FAILS REQUIREMENT** in the reference posture (`rejectUnauthorized:false` / `CERT_NONE` on both ports, both implementations) [VERIFIED] |
 | Pairing authentication | **PARTIAL** — output device verifies full alpha **[VERIFIED — protocol/reference]** (§2.7); OOB binding is **8 bits per independent pairing trial** **[VERIFIED — deployed client]** for format + **[ANALYSIS — derived]** for consequence (§2.6, §2.7.6, §2.7.7); device conformance, trial independence and throttling **[HARDWARE-required]** |
 | Persistent device identity | **PARTIAL** — client identity is well-defined and persisted [VERIFIED — client]; **server identity is persisted by neither reference client** [VERIFIED — client], so Greenfield4 must add it |
-| First-use trust | **PARTIAL — bounded.** Mechanism **[VERIFIED — protocol/reference]**; strength **8 bits/attempt** by construction; practical resistance depends on **[HARDWARE-required]** throttling. **Not** cryptographically strong first-use authentication |
+| First-use trust | **PARTIAL — bounded.** Mechanism **[VERIFIED — protocol/reference]**; strength **8 bits per independent pairing trial** by construction (§2.7.7); practical resistance depends on **[HARDWARE-required]** trial independence and throttling. **Not** cryptographically strong first-use authentication |
 | Reconnect trust | **UNSAFE / FAILS REQUIREMENT** as-is; **viable fail-closed design exists** [PROPOSED MITIGATION], pending hardware proof |
 | Certificate/public-key pinning viability | **PARTIAL** — mechanism is straightforward and does not require a trust-all mode [PROPOSED MITIGATION]; stability **[HARDWARE-REQUIRED]** |
 
@@ -898,13 +898,13 @@ persistence, and real-hardware behaviour all remain unproven (§2.9–§2.11).
 
 | | Samsung Tizen | Android TV Remote v2 |
 | :-- | :-- | :-- |
-| Authenticates TV → client | Nothing (cert unverified) | Nothing at TLS layer; during pairing the **output device verifies alpha server-side** **[VERIFIED — protocol]** |
-| Authenticates client → TV | Opaque token presented by client; **server-side association rule [UNRESOLVED]** | Client certificate (mutual TLS) |
+| Authenticates TV → client | Nothing (cert unverified) | Nothing at TLS layer. During pairing the **input device (phone) runs the local `checkGamma(userGamma)` check on the user-entered gamma (alpha prefix ‖ nonce) before sending any Secret** — this is the out-of-band check that gives the phone its bounded binding to the TV-side key material **[VERIFIED — protocol]** |
+| Authenticates client → TV | Opaque token presented by client; **server-side association rule [UNRESOLVED]** | During pairing: the **output device (TV) receives `Secret`, recomputes the full alpha over client cert ‖ server cert ‖ nonce, equality-compares all 256 bits, rejects a mismatch, and sends `SecretAck` only after success [VERIFIED — protocol]**. The client certificate (mutual TLS) additionally identifies the client **[VERIFIED — client]** but does **not** substitute for that pairing check. Contemporary target-device conformance **[HARDWARE-required]** |
 | User physically verifies | On-TV "Allow" popup — binds nothing | 6 hex symbols (gamma): **8-bit alpha prefix (the authenticator)** + 16-bit nonce |
 | Cryptographic binding at pairing | **None found in the client-observable path** | Client cert + server cert + nonce → SHA-256 (alpha), **verified by the output device** |
 | Persistable identity | Token (opaque; bearer semantics **[INFERRED]**) + capturable cert fingerprint | Client cert (verified) + capturable server cert/SPKI |
 | On identity change | Undetected | Client→TV: TV resets, `unpaired`. TV→client: undetected without pinning |
-| First-use MITM | **Not established** | **Mechanism verified; strength bounded at 8 bits/attempt; conformance + throttling unproven** |
+| First-use MITM | **Not established** | **Mechanism verified; strength bounded at 8 bits per independent pairing trial; conformance + trial independence + throttling unproven** |
 | Reconnect protection | None as-is | None as-is; fail-closed pinning is viable |
 
 The ecosystems must not be treated as one trust model. Samsung offers **no** user-transferred
@@ -913,8 +913,14 @@ and no first-use binding of any strength. Android TV offers a **real but bounded
 server-verified challenge-response plus an 8-bit out-of-band authenticator.
 
 The difference is one of **kind and degree together** — Android TV has a mechanism Samsung lacks
-entirely, but that mechanism is an 8-bit-per-attempt binding, not a 256-bit one. Neither ecosystem
-is first-use secure to Greenfield4's product bar on current evidence.
+entirely, but that mechanism is an **8-bits-per-independent-pairing-trial** binding, not a 256-bit
+one. Neither ecosystem is first-use secure to Greenfield4's product bar on current evidence.
+
+**Do not read this bound as a retry-rate claim.** Retries against unchanged digest inputs are
+**deterministic**, not fresh chances: a fresh ~1/256 chance requires a relevant alpha-digest input to
+change (`K_C`, `K_M1`, `K_M2`, `K_S`, `N`, or a new pairing session regenerating one). Whether an
+attacker can practically obtain enough independent trials is **[HARDWARE-required]** (§2.7.7, tests
+ATV-21 … ATV-30) and is deliberately left open in both directions.
 
 What has **not** changed: both ecosystems are equally weak on reconnect until Greenfield4 adds
 server-identity persistence, and Android TV remains subject to **[HARDWARE-required]** confirmation
