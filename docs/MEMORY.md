@@ -770,3 +770,33 @@ obligations, and (5) final name/slug. Do not restart broad protocol/OSS research
 primary evidence appears.
 
 **Issue:** #14
+
+
+---
+
+## 2026-09-15 — Issue #14 review refinement: discovery hardware delta
+
+**Context:** PR #16 diff review after the Harvest / Adopt / Reject reconciliation.
+
+**Did:** Found and corrected one staging ambiguity in `docs/PRODUCT.md`: the checkbox still read
+“Execute the release hardware matrix”, which could make all 47 catalogue tests appear to be a
+discovery blocker even though Issue #14 explicitly adopts OSS evidence reuse. The full matrix is now
+preserved as **pre-release conformance**, while discovery is narrowed to Android device-side facts
+that can still change the security decision: ATV-17a/17b/17d, ATV-21/22/23, ATV-26 and ATV-29;
+ATV-24/25 are conditional on ATV-23 showing TV-visible local failures, and ATV-27/28 are conditional
+follow-ups if initiation/code lifetime is still needed. Samsung's structural first-use problem is
+not re-proved by hardware as a discovery prerequisite; its remaining discovery action is the
+product-owner residual-risk decision.
+
+**Verified:** Reviewed the real PR #16 patch before this correction. No hardware row was reclassified
+as Passed/Tested. The release requirement for two model/firmware generations per shipping ecosystem
+remains. Local `scripts/verify.sh` remains unavailable because the execution container cannot
+resolve `github.com`; GitHub Actions on the final PR head remains the executable witness.
+
+**Learned:** “Keep the full test catalogue” and “make the full catalogue a discovery gate” are
+different requirements. Harvesting mature OSS should reduce **when** Greenfield must rediscover
+known mechanics, without reducing the release evidence needed for honest Tested claims.
+
+**Next:** Read CI on the final PR head and leave PR #16 open for independent review.
+
+**Issue:** #14 · **PR:** #16
