@@ -571,3 +571,77 @@ ask separately: *what does each authenticate, over which channel, against which 
 in-band digest sent over the untrusted channel cannot authenticate the endpoints of that channel.
 
 **Issue:** #11 · **PR:** #12 (body rewritten to current state; still open, not self-merged)
+
+---
+
+## 2026-09-15 — Correction round 4: trial independence, the local retry path, and per-leg vs cross-leg binding
+
+**Context.** Three further independent reviews of PR #12 (all against head `26978f2`) accepted the
+8-bit out-of-band conclusion but found it was **quantified and tested wrongly**. All three reviews
+were checked against the pinned sources before editing; none of the reviewer claims was accepted on
+assertion alone.
+
+**Finding 1 — §2.7.5 contradicted §2.7.6 (HIGH).** §2.7.5 still said an attacker "changes the
+client's alpha but not the TV's, and the two cannot match", so first-use MITM is "resisted by
+construction". That is **withdrawn**. The two alphas are computed over different key material
+*by design* in a terminating-MITM setup and are **not required to match each other**: after the
+8-bit gate passes the attacker supplies each leg with the alpha that leg expects. Full-alpha
+equality authenticates **each leg**; it does **not** bind two separately terminated legs. The old
+statement is true only for a naive/transparent relay, which cannot read or modify traffic either.
+**Lesson:** *per-leg authentication* and *cross-leg binding* are different properties; verifying a
+digest over an untrusted channel never binds the two ends of that channel together.
+
+**Finding 2 — §2.8 was backwards (HIGH).** It said the compensation is server-side "so it does not
+depend on the client's local one-byte check". Withdrawn and reversed. Server-side full-alpha
+verification is **necessary** to authenticate the Secret on the TV leg but **not sufficient** to bind
+the legs; the client's local prefix check is the **only** out-of-band cross-leg authenticator.
+
+**Finding 3 — "per retry" was not established (MEDIUM→HIGH).** All `1/256 per attempt/retry`
+language replaced by **~1/256 per independent pairing trial**. An *independent trial* requires an
+alpha-digest input to change (`K_C`, `K_M1`, `K_M2`, `K_S`, `N`, or a new session regenerating one);
+re-entering the same gamma against unchanged key material is **deterministic**. The claim that
+"each retry generates a fresh nonce" is **withdrawn** — AOSP generates the nonce once per
+output-device pairing phase, and nothing read establishes regeneration on rejection. Conditional
+arithmetic retained and labelled as conditional: geometric mean **256** independent trials, **~177**
+for ~50 % cumulative, ~590 for ~90 % — all contingent on the attacker obtaining that many, which is
+**[HARDWARE-required]** and deliberately left open.
+
+**Finding 4 — unmeasured timing claim (MEDIUM).** "2^16 … milliseconds" replaced with "at most
+**65,536 candidate hashes**; computationally small as an offline search", plus an explicit note that
+no timing was benchmarked. **BOOTSTRAP discipline: never state an unmeasured quantity as obtained
+fact.** The cryptographic conclusion never needed a speed number.
+
+**Finding 5 — ATV-21–23 measured the wrong path (HIGH).** 255/256 of failures occur **locally at the
+phone's prefix check, before any Secret is transmitted**, so the TV may observe nothing it could
+rate-limit. ATV-21–23 were redesigned around that path: ATV-21 = local prefix-mismatch retry loop
+(does the gamma/session survive, can the same gamma be re-entered, is the connection destroyed, what
+user action precedes the next trial); ATV-22 = **is the next trial cryptographically independent**
+(including deliberately rotating the attacker-controlled phone-facing key `M1` with the TV session
+held fixed); ATV-23 = **is the local failure visible to the TV at all**. Added ATV-29 (independent
+trials per user-mediated session) and ATV-30 (cost of ~177 trials, reported as extrapolation). The
+section now states that **TV-visible throttling (ATV-24–28) must not be credited as mitigation for
+the local loop unless ATV-23 shows the TV actually observes local failures.**
+**Lesson:** when a security bound depends on a retry loop, instrument the loop the attacker would
+actually use — including the failure mode the *defender* cannot see.
+
+**Finding 6 — consistency cleanup (LOW).** PRODUCT.md said 17 Samsung + **20** Android TV tests;
+corrected to 17 + **30** (33 rows counting ATV-17a–d). The `CLIENT-INST` environment row said
+"ATV-17a and ATV-17b **only**" but ATV-17d repeats both on ATV-B and the new ATV-21/22/29 also need
+it. Samsung §1.4's first VERIFIED bullet ("The client authenticates itself by presenting that opaque
+token") was a **server-side semantic under a client-only label**; replaced with "The client presents
+no reconnect credential beyond the opaque token; no certificate, public-key, or device-identity
+binding is visible in the client-observable path."
+
+**New product-security constraint carried forward (research conclusion, not implementation work).**
+The pairing gamma is **out-of-band, per-session, user-mediated material — not a stored credential**.
+A future Greenfield4 implementation **must not** silently cache or reuse a gamma across a new TLS
+peer identity or a new pairing session; preserving a legitimate ongoing session is acceptable,
+carrying a gamma to a different peer identity is not. Recorded in §2.7.7 as a `[DESIGN CONSTRAINT]`.
+
+**Deliberately preserved:** the 8-bit conclusion was **not** softened merely because no attack was
+executed — it stays `[ANALYSIS — derived]` (not `[VERIFIED]`), contemporary-firmware conformance and
+retry/session behaviour stay `[HARDWARE-required]`, Android TV stays **PARTIAL / bounded residual
+risk**, the Samsung first-use conflict stays an open product-owner decision, ADR-0005 and
+`config/project.env` stay untouched, and no hardware test was executed.
+
+**Issue:** #11 · **PR:** #12 (body rewritten to current state each round; still open, not self-merged)

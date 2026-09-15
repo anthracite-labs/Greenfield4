@@ -31,7 +31,7 @@ device and the recorded evidence exists. Until then every row is `NOT RUN`.
 | PHONE-2 | Second Android phone | Distinguishes client-side from TV-side state; needed for the independent-pairing tests |
 | AP-1 | Consumer router/AP with a configurable DHCP pool | Network/IP-change and DHCP tests |
 | PROXY-1 | Laptop running a TLS interception proxy (e.g. mitmproxy) on the same LAN | Substituted-certificate tests (ATV-17c, SAM-17) |
-| CLIENT-INST | An **instrumented Greenfield4 test client** under our control that can log the TLS peer-certificate fingerprint, the local gamma-check outcome, the exact Secret bytes transmitted, and the response class — and that can be told to transmit a deliberately corrupted Secret | **ATV-17a and ATV-17b only.** This is what makes the decisive test possible without any interception: the client already holds its own key and talks straight to the TV, so injecting a bad Secret needs no MITM |
+| CLIENT-INST | An **instrumented Greenfield4 test client** under our control that can log the TLS peer-certificate fingerprint, the local gamma-check outcome, the exact Secret bytes transmitted, and the response class — and that can be told to transmit a deliberately corrupted Secret | **ATV-17a, ATV-17b, ATV-17d (which repeats both on ATV-B), and the local-prefix-loop tests ATV-21, ATV-22 and ATV-29** — used wherever the local gamma-check outcome or the exact transmitted Secret must be observed. This is what makes the decisive test possible without any interception: the client already holds its own key and talks straight to the TV, so injecting a bad Secret needs no MITM |
 | LAB-NET | An isolated lab network we own, carrying only the test devices | All interception tests; keeps ATV-17c and SAM-17 off any network used by other people |
 
 ### Required firmware/OS versions
@@ -156,12 +156,23 @@ matrix must be repeatable at a stated version.
 ## Pairing-attempt controls (bounding practical first-use attackability)
 
 **Why this section exists.** The Android TV first-use assessment in
-[`2026-09-14-security-trust-model.md`](2026-09-14-security-trust-model.md) §2.7.6 concludes that,
-against a terminating active MITM, the out-of-band binding is **8 bits per attempt** — an attacker
-clears the alpha-prefix gate with probability ~1/256 per attempt and then recovers the 16-bit nonce
-offline in milliseconds. Whether that is practically exploitable therefore depends **almost entirely
-on how many attempts an attacker gets**. Those controls are invisible to every source read in this
-research, so they must be measured on hardware.
+[`2026-09-14-security-trust-model.md`](2026-09-14-security-trust-model.md) §2.7.6/§2.7.7 concludes
+that, against a terminating active MITM, the out-of-band binding is **8 bits per independent pairing
+trial** — an attacker clears the alpha-prefix gate with probability ~1/256 per independent trial and
+then recovers the 16-bit nonce from at most **65,536 candidate hashes**, which is computationally
+small as an offline search. (No timing is claimed; this was not benchmarked.)
+
+How exploitable that is depends on **how many independent trials an attacker can obtain** — and
+"independent" is load-bearing: re-entering the same gamma against unchanged key material is
+deterministic, not a fresh chance (§2.7.7). None of this is visible in any source read in this
+research, so it must be measured on hardware.
+
+**Two failure paths, measured separately.** In 255/256 of trials the phone rejects the prefix
+**locally and transmits no Secret at all**; the TV may see nothing. Only in the remaining 1/256 does
+the attacker reach the TV with a Secret it can reject. ATV-21 … ATV-23 and ATV-29 … ATV-30 measure
+the **local** loop; ATV-24 … ATV-28 measure **TV-visible** throttling. **TV-visible throttling must
+not be credited as mitigation for the local loop unless ATV-23 shows the TV actually observes local
+failures.**
 
 **No expected protections are invented here.** Every row records what the device *actually* does;
 several rows are deliberately pass/fail-free because the safe answer is not known in advance. All
@@ -169,18 +180,21 @@ are **NOT EXECUTED**.
 
 | ID | Observation | Pass/fail | Evidence |
 | :-- | :-- | :-- | :-- |
-| ATV-21 | **Attempts allowed per displayed code.** Submit an incorrect code repeatedly against one displayed gamma; count attempts before the TV stops accepting input or rotates the code. | **No pass/fail — record the number.** It directly sets the attacker's success probability per displayed code. | Attempt count; whether code rotated; TV UI state |
-| ATV-22 | **Does a failed attempt invalidate or rotate the displayed code?** Submit one wrong code, then observe whether the same gamma remains displayed and whether the TV generates a new nonce. | **No pass/fail — record behaviour.** Rotation on failure materially reduces per-code attempts. | Gamma before/after; nonce before/after (from instrumented client); TV UI |
-| ATV-23 | **Retry delay after a failed attempt.** Measure the delay imposed before another code may be submitted, and whether it grows. | **No pass/fail — record the delay and any growth pattern.** | Timestamps; measured delays |
+| ATV-21 | **Local prefix-mismatch retry loop — the dominant 255/256 path.** Using CLIENT-INST, enter a wrong code so the **local alpha-prefix check fails and no Secret is transmitted**. Record the full cycle: (a) did the failure stay local — log shows prefix mismatch and **zero bytes of Secret sent**; (b) do the same displayed gamma **and the same TV pairing session** remain usable afterwards; (c) can the same gamma be re-entered; (d) is the phone-side TLS connection destroyed or reusable; (e) exactly what user action (on TV, on phone) precedes another trial. | **No pass/fail — record the complete per-trial cycle and its cost.** This row bounds the attack loop that §2.7.6/§2.7.7 depend on. **Note:** a plain wrong-code entry is a *local* event and may never reach the TV, so it is not by itself a measure of attempts the TV permits. | Client log showing prefix-match result and Secret-bytes-sent = 0; gamma before/after; TV session id before/after; connection state; per-trial user-action log |
+| ATV-22 | **Is the next trial cryptographically independent?** Repeat the ATV-21 local failure and determine whether the following trial is a *new independent* trial per §2.7.7 — i.e. whether the nonce `N`, the TV session, or any other alpha-digest input actually changed. Then deliberately vary the **attacker-controlled phone-facing key `M1`** with the TV session and displayed gamma held fixed, and confirm the local prefix result changes accordingly (a trial that now matches where it previously did not proves a fresh independent draw was obtained **without** forcing a new TV session). | **No pass/fail — record whether independence is achievable at all, and what producing it costs.** Do **not** assume each retry yields a fresh nonce: AOSP generates the nonce once per output-device pairing phase, and nothing read establishes that a rejected attempt regenerates it. | Nonce before/after per trial (instrumented client); `M1` fingerprint per trial; prefix-match outcome per trial; whether TV session id or gamma rotated |
+| ATV-23 | **Is the local failure visible to the TV at all?** With TV-side observation in place, cause a local prefix mismatch (wrong code, **no Secret sent**) and determine whether the TV registers **any** event: a failed-pairing record, a counter increment, a log entry, a UI change, or nothing whatsoever. Measure any imposed retry delay and whether it grows. | **No pass/fail — record exactly what the TV can and cannot see, plus any delay.** **If the TV observes nothing, the TV-side throttling measured by ATV-24 … ATV-26 cannot be credited as mitigation for the 255/256 local loop**, and the write-up must say so explicitly rather than implying the local loop is rate-limited. | TV-observed pairing result; any counter/log/UI change; captured frames during the attempt; timestamps and measured delay |
 | ATV-24 | **Rate limiting on repeated pairing sessions.** Start many pairing sessions in succession and measure whether the TV throttles or refuses them. | **No pass/fail — record the observed limit.** | Session start times; accept/refuse outcomes |
 | ATV-25 | **Lockout / backoff after N failures.** Continue failing until the TV refuses, then observe the lockout duration and whether it persists across TV standby/wake and reboot. | **No pass/fail — record threshold, duration, and persistence.** | Failure count to lockout; duration; persistence across power states |
 | ATV-26 | **Can a pairing session be initiated remotely without fresh user action?** Determine whether an unauthenticated LAN peer can cause the TV to display a new code at will. | **PASS (for security) only if** a new code cannot be produced without on-device user action. Otherwise record the exposure — this determines whether an attacker can farm attempts unattended. | Whether a code appears without user action; captured session initiation |
 | ATV-27 | **Is user approval required to begin pairing each time?** Observe what the user must do on the TV to start a pairing session. | **No pass/fail — record the required action.** | Description/screenshot of required on-TV action |
 | ATV-28 | **Code lifetime.** Measure how long a displayed gamma remains valid, and whether it expires on its own. | **No pass/fail — record the lifetime.** | Display time to expiry; TV UI state |
+| ATV-29 | **Independent trials obtainable per user-mediated session.** With one live TV pairing session and one displayed gamma, present a sequence of distinct phone-facing TLS keys (`M1`) and count how many trials complete before something ends the run — session rotation, code expiry, TV refusal, or nothing at all. | **No pass/fail — record the count and identify what limited it.** This yields *independent trials per user-mediated pairing session*, the exact quantity §2.7.7 leaves open. | Distinct `M1` fingerprints attempted; session id and code state per attempt; what terminated the run |
+| ATV-30 | **Total cost of many independent trials.** End to end, measure wall-clock time and the exact number of on-TV and on-phone user actions needed to obtain 10 independent trials; extrapolate to the ~177 trials that give roughly even cumulative odds in §2.7.7. | **No pass/fail — record the cost.** This is what converts §2.7.7's conditional probability into a practical statement; report the extrapolation as an extrapolation, not a measurement. | Timestamps; per-trial user-action log; stated extrapolation and its assumptions |
 
 **Combining the result.** Practical first-use attackability is bounded by the product of: attempts
-per code (ATV-21/22), delay and rate limiting (ATV-23/24), lockout threshold and persistence
-(ATV-25), and whether attempts can be generated unattended (ATV-26/27). Record each on **ATV-A and
+per code (ATV-21/22), TV visibility of local failure and delay (ATV-23), rate limiting (ATV-24),
+lockout threshold and persistence (ATV-25), and whether attempts can be generated unattended
+(ATV-26/27). Record each on **ATV-A and
 ATV-B separately** — throttling behaviour is per-firmware and must not be generalised from one
 device.
 

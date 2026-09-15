@@ -100,9 +100,9 @@ secure 8002 path (§1.5).
 
 **What that proves** — deliberately not overstated, and consistent with §1.7:
 
-- **[VERIFIED — client]** The client authenticates itself by presenting that opaque token. No
-  certificate, public key, or device identity is bound into it, and the client proves nothing beyond
-  presenting it.
+- **[VERIFIED — client]** The client presents no reconnect credential beyond the opaque token; no
+  certificate, public-key, or device-identity binding is visible in the client-observable path.
+  What the TV concludes from that presentation is *not* established by this evidence.
 - **[INFERRED]** Bearer semantics are therefore the correct **planning assumption**: possession is
   likely sufficient, because the client demonstrates nothing else. This is the assumption
   Greenfield4 must defend against.
@@ -564,11 +564,32 @@ Two caveats, both from the source, that a test must respect:
 
 ### 2.7.5 Consequence, and the correct evidence classification
 
-Because both peers compute alpha over the **same nonce** plus **both certificates as each peer
-sees them**, an attacker who terminates TLS and substitutes a certificate changes the client's
-alpha but not the TV's, and the two cannot match. Under the reference protocol, first-use MITM is
-**resisted by construction**, and specifically by a **server-side** check — not merely by the
-client's local check.
+*Corrected 2026-09-15.* An earlier version of this section claimed that an attacker who terminates
+TLS "changes the client's alpha but not the TV's, and the two cannot match", and concluded that
+first-use MITM is therefore "resisted by construction". **That conclusion is withdrawn.** It
+conflates two different properties, and it is false for the threat model that matters (§2.7.6).
+
+**Property 1 — per-leg authentication (holds).** On any single pairing leg, both peers compute alpha
+over the same nonce and the same two certificates *as seen on that leg*. Full-alpha equality
+therefore authenticates **that leg**: a peer whose view of the key material differs cannot produce
+the alpha the other end expects. This is what the output device's full-alpha comparison enforces
+(§2.7.3), and it holds even against an attacker — but only *within* one leg.
+
+**Property 2 — cross-leg binding (does not follow).** Against a **terminating** MITM there are two
+legs, and the two alphas are computed over *different* key material by construction. They are
+**not required to match each other**: once the 8-bit out-of-band gate happens to pass, the attacker
+recovers the nonce and supplies each leg with the alpha *that leg* expects (§2.7.6). So
+server-side full-alpha verification does **not** bind the phone-facing and TV-facing TLS sessions
+together.
+
+**Where the old statement was true.** "The two cannot match" describes only a **naive or transparent
+relay** that forwards one alpha unchanged — an attacker who terminates nothing. Such a relay cannot
+read or modify the traffic either, so the observation says little about an active attacker.
+
+**Conclusion.** Cross-leg binding against a terminating active MITM comes **only** from the
+user-transferred alpha prefix, which in the deployed six-symbol format is **8 bits** (§2.6, §2.7.6).
+Server-side verification is necessary to authenticate the Secret on the TV leg; it is not sufficient
+to bind two separately terminated legs.
 
 | Claim | Classification |
 | :-- | :-- |
@@ -576,6 +597,7 @@ client's local check.
 | The output device recomputes alpha and rejects a mismatched in-band Secret | **[VERIFIED — protocol]** `PairingSession.doPairingPhase()`; `OnSecretMessage` → `VerifySecret` |
 | SecretAck is sent only after that comparison succeeds | **[VERIFIED — protocol]** both implementations |
 | The client can reject locally before sending (so a generic MITM failure is ambiguous) | **[VERIFIED — protocol]** `checkGamma` / `CheckGamma` gate in `SetSecret` |
+| Full-alpha equality authenticates **each leg**; it does **not** bind two separately terminated legs | **[VERIFIED — protocol]** for the per-leg property; **[ANALYSIS — derived]** for the cross-leg conclusion (§2.7.6) |
 | **Contemporary Android TV / Google TV firmware on target devices enforces this** | **[HARDWARE-REQUIRED]** — see below |
 
 **What is still not proven.** The AOSP tree is a pairing-protocol reference implementation; it is
@@ -625,14 +647,16 @@ attacker who terminates two separate TLS sessions**.
 6. Only if that byte matches does the phone transmit `alpha_phone` (32 bytes).
 
 **Result.** `alpha_TV` and `alpha_phone` are digests over different key material whenever Mallory
-uses different keys on the two legs. Their first bytes therefore agree with probability **1/256**
-per attempt.
+uses different keys on the two legs. Their first bytes therefore agree with probability **~1/256 per
+independent pairing trial**, under the assumption that the prefix behaves as pseudorandom — **not**
+per retry (§2.7.7 defines what makes a trial independent).
 
 - **255/256 of the time** the phone aborts locally and **never transmits**. Mallory learns nothing.
 - **1/256 of the time** the phone transmits `alpha_phone`. Mallory now knows
   `alpha_phone = SHA-256(K_C ‖ K_M1 ‖ N)` where `K_C` and `K_M1` are both public certificates he
-  already holds, so he recovers `N` by exhaustive search over **2^16** candidates — milliseconds of
-  work. With `N` he computes the *correct* alpha for leg 2, `SHA-256(K_M2 ‖ K_S ‖ N)`, and forwards
+  already holds, so he recovers `N` by exhaustive search over at most **2^16 = 65,536** candidate
+  hashes — **computationally small as an offline search**. No timing is claimed: this was not
+  benchmarked in this session. With `N` he computes the *correct* alpha for leg 2, `SHA-256(K_M2 ‖ K_S ‖ N)`, and forwards
   it. **The TV's server-side verification succeeds and it sends SecretAck.** Mallory is now a
   persistent man-in-the-middle for that pairing.
 
@@ -646,23 +670,27 @@ meaningful barrier on its own, and Mallory cannot even begin it until the gate h
 | Component | Property it provides | Property it does **not** provide |
 | :-- | :-- | :-- |
 | **8-bit alpha prefix** (transferred by the user) | The **only** out-of-band authenticator: it detects that the key material the phone observed differs from the key material the TV holds. This is the whole defence against a terminating MITM. | Not more than 8 bits. It is not a 256-bit binding. |
-| **16-bit nonce** | Freshness — a new nonce per pairing session, so an old gamma cannot be replayed. | **Not** an authenticator. It is displayed on screen, and is recoverable offline in 2^16 once any alpha is observed. |
+| **16-bit nonce** | Freshness — a new nonce per pairing session, so an old gamma cannot be replayed. | **Not** an authenticator. It is displayed on screen, and is recoverable offline from at most 65,536 candidate hashes once any alpha is observed (no timing claimed). |
 | **32-byte full alpha** (in-band) | **Complete verification for the leg it is sent on**: the receiver recomputes alpha and equality-compares all 256 bits, so any mismatch between what the sender computed and what the receiver computes is caught. | It does **not** bind the two legs together. Once `N` is known, an attacker computes each leg's alpha independently and both verifications pass. It adds **no** out-of-band authentication. |
 
 **Conclusion, stated precisely.** Against a terminating active MITM, Android TV Remote v2 pairing
-provides **8 bits of out-of-band authentication per pairing attempt**. Each retry generates a fresh
-nonce and therefore an independent 1/256 chance, so with unlimited unthrottled attempts the expected
-number of tries to succeed is on the order of 10^2. Whether that is practically exploitable depends
-almost entirely on controls that are **[HARDWARE-required]** and are not visible in any source read
-here: attempts allowed per displayed code, whether a failure rotates the code, retry delay, rate
-limiting, lockout/backoff, code lifetime, and whether a new pairing session can be started remotely
-without fresh user approval.
+provides **8 bits of out-of-band authentication per independent pairing trial** (§2.7.7 defines
+"independent"). Treating independent trials as Bernoulli with `p ≈ 1/256`, the expected number of
+trials to first success is **256**, and **~177** independent trials give roughly **50 %** cumulative
+probability of success.
+
+**This is a conditional statement, and the condition is the open question.** Whether an attacker can
+obtain anywhere near that many *independent* trials is **[HARDWARE-required]** and is not visible in
+any source read here. The controls that would bound it are: attempts allowed per displayed code,
+whether a failure rotates the code or the session, retry delay, rate limiting, lockout/backoff, code
+lifetime, and whether a new pairing session can be started remotely without fresh user approval.
+**No claim is made either way about how many trials an attacker can actually obtain.**
 
 **What this does and does not mean.**
 
 - It does **not** mean Android TV is fundamentally unsafe. The mechanism is real, it is enforced
-  server-side, and it forces an active attacker to gamble per attempt rather than succeed
-  deterministically. This is a **bounded residual risk**, materially stronger than Samsung, where
+  server-side, and it forces an active attacker to gamble on each **independent** trial rather than
+  succeed deterministically (§2.7.7). This is a **bounded residual risk**, materially stronger than Samsung, where
   no code exists at all (§1.6, §1.10).
 - It also does **not** mean first-use authentication is cryptographically strong. **8 bits is not
   256 bits, and "the server verifies a 256-bit alpha" must never be read as 256 bits of
@@ -670,25 +698,93 @@ without fresh user approval.
   with no global ignore-security mode, and an 8-bit binding plus unknown retry controls does not
   by itself satisfy that.
 
+### 2.7.7 What counts as an independent trial, and the local-failure retry path
+
+*Added 2026-09-15 in response to review.* The ~1/256 figure applies to an **independent** pairing
+trial. The distinction is not pedantry: it is the difference between a bounded residual risk and a
+practical one, and it changes what the hardware matrix must measure.
+
+**Definition — independent trial.** A pairing trial is independent only if at least one input to the
+alpha digest changes: the phone's key `K_C`, the phone-observed "server" key `K_M1`, the
+TV-observed "client" key `K_M2`, the TV's key `K_S`, the nonce `N`, or a new pairing session that
+regenerates any of them. Two attempts that differ only in what the user types, against unchanged key
+material and an unchanged nonce, are **not** independent trials — the prefix either matches or it
+does not, and re-entering the same gamma is deterministic, not a fresh coin flip.
+
+**Withdrawn claim.** Earlier text said "each retry generates a fresh nonce and therefore an
+independent 1/256 chance". **That is not established by any source read here and is withdrawn.**
+AOSP generates the nonce once inside the output-device pairing phase; nothing read establishes that
+a rejected attempt regenerates it. Whether ordinary retry UX produces a fresh nonce is
+**[HARDWARE-required]** and is exactly what tests ATV-21 … ATV-24 measure.
+
+**Conditional expectation.** If an attacker obtains `k` independent trials at `p ≈ 1/256`:
+
+| Quantity | Value | Status |
+| :-- | :-- | :-- |
+| Expected (geometric mean) trials to first success | **256** | Arithmetic — follows from `p` |
+| Independent trials for ~50 % cumulative success | **~177** (`1 − (255/256)^177 ≈ 0.50`) | Arithmetic |
+| Independent trials for ~90 % cumulative success | **~590** | Arithmetic |
+| Whether an attacker can obtain 177+ independent trials | **unknown** | **[HARDWARE-required]**, ATV-21 … ATV-30 |
+
+The arithmetic is uncontroversial. **The attacker's ability to realise it is not established, and is
+deliberately left open.**
+
+**The dominant failure path is local, and that matters for throttling.** In 255/256 of trials the
+phone rejects the prefix **before transmitting any Secret** (step 5 of §2.7.6). The TV may therefore
+observe **no** failed Secret, no wrong code, and no event it could rate-limit. Two consequences
+follow, and they must not be conflated:
+
+- **Local prefix rejection (255/256)** — invisible to the TV. Only the phone knows it happened.
+  Whether the same gamma and TV session survive it, and what user action the next trial costs, is
+  **[HARDWARE-required]** (ATV-21 … ATV-24).
+- **Server-visible bad-Secret rejection (1/256, post-prefix-match)** — visible to the TV and
+  rate-limitable. Measured separately by ATV-17* and ATV-26/27.
+
+TV-side failed-Secret throttling is **not** evidence against the retry loop unless hardware shows it
+actually gates the *local* path. It gates only the 1/256 case where the attacker reaches the TV at
+all.
+
+**The user/client factor — a design constraint carried forward.** The pairing code is out-of-band
+and must reach the phone **for the relevant pairing session**. Two consequences are recorded here as
+research conclusions, **not** as implementation work for this PR:
+
+- **[ANALYSIS — derived]** A client that caches or silently reuses a gamma across sessions, or that
+  auto-fills it without a fresh user transfer, destroys the only cross-leg binding the construction
+  has. A client that requires a fresh user-supplied code per session preserves it.
+- **[DESIGN CONSTRAINT for Greenfield4]** Any future implementation **must not** silently cache or
+  reuse a pairing gamma across a new TLS peer identity or a new pairing session. The gamma is
+  per-session, user-mediated material — not a stored credential. Preserving a *legitimate ongoing*
+  session is acceptable; carrying a gamma to a *different* peer identity is not.
+
 ## 2.8 Does successful pairing compensate for disabled PKI validation?
 
 **Partly, and only for the pairing phase.**
 
-During pairing the digest provides an authentication property that does not depend on PKI: the TV's
-public key is bound into alpha, which is compared by the output device itself
-**[VERIFIED — protocol, §2.7.3]**, and the user's physical act of reading gamma off the TV is what
-protects the nonce. Under the reference protocol this is a genuine compensation for
-`rejectUnauthorized: false` **at pairing time** — and, importantly, it is a *server-side* check, so
-it does not depend on the client's local one-byte check.
+Two different mechanisms compensate for `rejectUnauthorized: false` during pairing, and **neither
+alone is sufficient against a terminating MITM**.
 
-**Bounded, not absolute.** Against a terminating active MITM the compensation is worth **8 bits of
-out-of-band authentication per attempt**, not 256 — the full alpha verifies the leg it is sent on
-but does not bind two separately terminated legs together (§2.7.6). The compensation is therefore
-real but **partial**, and its practical strength depends on retry/rate-limiting controls that are
-[HARDWARE-required].
+*Corrected 2026-09-15.* An earlier version of this section said the compensation "is a *server-side*
+check, so it does not depend on the client's local one-byte check". **That is backwards for the
+terminating-MITM case and is withdrawn** — it contradicted §2.6.3/§2.7.6. The correct relationship
+is the opposite: the client's local prefix check is the *only* out-of-band cross-leg authenticator,
+and server-side verification cannot substitute for it.
 
-The remaining uncertainties are thus threefold, not one: does the device enforce it, does it
-rate-limit attempts, and is 8 bits plus those controls enough for Greenfield4's requirement?
+- **Server-side full-alpha verification** — **[VERIFIED — protocol, §2.7.3]** — is **necessary** to
+  authenticate the Secret on the TV-facing leg. Without it the TV could not distinguish a correct
+  Secret from a wrong one at all. It is **not sufficient** to bind the two legs together.
+- **The client-side alpha-prefix check** — **[VERIFIED — deployed client]** for the format (§2.6.1),
+  **[ANALYSIS — derived]** for its role — is the **out-of-band authenticator**: it is what ties what
+  the phone computed to what the physical TV actually displayed. It is the only cross-leg binding in
+  the construction (§2.7.6). Full-alpha verification does not provide it.
+- In deployed Remote v2 that binding carries **8 bits** of out-of-band authentication, not 256.
+
+**Bounded, not absolute.** The compensation is real but **partial**. Its practical strength depends
+on how many **independent trials** an attacker can obtain, which is **[HARDWARE-required]**
+(§2.7.7, tests ATV-21 … ATV-30).
+
+The remaining uncertainties are thus: does the device enforce server verification, can an attacker
+obtain many independent trials, and is an 8-bit binding plus those limits enough for Greenfield4's
+requirement?
 
 It does **not** extend to the remote session. On reconnects over port 6466 there is no code, no
 digest, and no user action — just `rejectUnauthorized: false` / `CERT_NONE` (§2.3). So the
@@ -763,13 +859,15 @@ Three separate properties, which must not be collapsed:
    the consequence (§2.7.6). In the deployed six-symbol format the user transfers an 8-bit alpha
    prefix plus a 16-bit nonce. Only the prefix is an authenticator; the nonce is not, and the 32-byte
    alpha does not bind two separately terminated TLS legs. Against a terminating MITM the attacker
-   clears the prefix gate with probability **1/256 per attempt**, then recovers the 16-bit nonce
-   offline in milliseconds and completes both legs.
+   clears the prefix gate with probability **~1/256 per independent pairing trial** (§2.7.7), then
+   recovers the 16-bit nonce from at most **65,536 candidate hashes** — computationally small as an
+   offline search — and completes both legs.
 3. **Whether contemporary firmware enforces any of it, and how it throttles attempts** —
    **[HARDWARE-required]**. The AOSP tree is a reference implementation (Java © 2009, C++ © 2012),
    not a 2026 device. Attempts per code, rotation on failure, retry delay, rate limiting, lockout,
-   and code lifetime are invisible to every source read here and are what determine whether ~10^2
-   expected attempts is practical (§2.7.6, and tests ATV-17*, ATV-21 … ATV-28).
+   and code lifetime are invisible to every source read here and are what determine whether an
+   attacker can realistically obtain enough **independent** trials — the mean is 256, and ~177 gives
+   roughly even odds (§2.7.7, and tests ATV-17*, ATV-21 … ATV-30).
 
 **Position.** This is a **bounded residual risk, not a demonstrated vulnerability and not a
 cryptographically strong first-use authentication.** It is materially stronger than Samsung, where
@@ -777,8 +875,8 @@ no user-transferred code exists at all (§1.6, §1.10). It is weaker than "the s
 256-bit alpha" sounds, and the two must never be equated.
 
 **Not over-corrected in either direction.** Android TV is **not** declared fundamentally unsafe —
-the mechanism forces an attacker to gamble per attempt rather than succeed deterministically. It is
-also **not** upgraded to VERIFIED: device conformance, throttling behaviour, reconnect identity
+the mechanism forces an attacker to gamble on each independent trial rather than succeed
+deterministically (§2.7.7). It is also **not** upgraded to VERIFIED: device conformance, throttling behaviour, reconnect identity
 persistence, and real-hardware behaviour all remain unproven (§2.9–§2.11).
 
 ## 2.13 Android TV / Google TV assessment
@@ -786,7 +884,7 @@ persistence, and real-hardware behaviour all remain unproven (§2.9–§2.11).
 | Concern | State |
 | :-- | :-- |
 | TLS transport validation | **UNSAFE / FAILS REQUIREMENT** in the reference posture (`rejectUnauthorized:false` / `CERT_NONE` on both ports, both implementations) [VERIFIED] |
-| Pairing authentication | **PARTIAL** — output device verifies full alpha **[VERIFIED — protocol/reference]** (§2.7); OOB binding is **8 bits** per attempt **[VERIFIED — deployed client]** + derived (§2.6, §2.7.6); device conformance and throttling **[HARDWARE-required]** |
+| Pairing authentication | **PARTIAL** — output device verifies full alpha **[VERIFIED — protocol/reference]** (§2.7); OOB binding is **8 bits per independent pairing trial** **[VERIFIED — deployed client]** for format + **[ANALYSIS — derived]** for consequence (§2.6, §2.7.6, §2.7.7); device conformance, trial independence and throttling **[HARDWARE-required]** |
 | Persistent device identity | **PARTIAL** — client identity is well-defined and persisted [VERIFIED — client]; **server identity is persisted by neither reference client** [VERIFIED — client], so Greenfield4 must add it |
 | First-use trust | **PARTIAL — bounded.** Mechanism **[VERIFIED — protocol/reference]**; strength **8 bits/attempt** by construction; practical resistance depends on **[HARDWARE-required]** throttling. **Not** cryptographically strong first-use authentication |
 | Reconnect trust | **UNSAFE / FAILS REQUIREMENT** as-is; **viable fail-closed design exists** [PROPOSED MITIGATION], pending hardware proof |
@@ -861,10 +959,11 @@ guarantee in the hand.
   - *Mechanism*: **[VERIFIED — protocol/reference]** — the output device recomputes alpha and
     rejects a mismatch before sending SecretAck (§2.7.3). Settled for the reference protocol.
   - *Strength*: **[ANALYSIS — derived, §2.7.6]** — against a terminating active MITM the
-    out-of-band binding is **8 bits per attempt**; the 32-byte alpha verifies the leg it is sent on
-    but does not bind two separately terminated legs. The attacker must clear 1/256 per attempt.
+    out-of-band binding is **8 bits per independent pairing trial**; the 32-byte alpha verifies the
+    leg it is sent on but does not bind two separately terminated legs. The attacker must clear
+    ~1/256 per independent trial (§2.7.7).
   - *Device behaviour*: **[HARDWARE-required]** — whether target firmware enforces it, and whether
-    attempt throttling makes ~10^2 expected attempts impractical.
+    attempt throttling limits how many independent trials an attacker can realistically obtain.
   No interception has been executed in this session. **PARTIAL**, deliberately not upgraded: a
   verified mechanism with a bounded guarantee is not the same as demonstrated resistance, and the
   two must not be reported as one.
