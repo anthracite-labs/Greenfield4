@@ -716,3 +716,29 @@ pinning and discovery patterns would repeat solved work. Local verification is b
 **Next:** Use PR CI as the gate. Remaining discovery work is Samsung first-use product disposition,
 real-TV security/compatibility evidence, vendor/legal review, a provenance-clean V1 IR seed,
 product naming, and an explicit casting/mirroring V1 scope decision.
+
+
+## 2026-09-15 — Harvest review correction: route is not identity (issue #13, PR #15)
+
+**Done:** Independent diff/source review found one overstatement in the Harvest record and corrected
+it in PRODUCT.md plus the security/reconciliation docs. ScreenCast proves exact Android TV
+server-certificate capture and reconnect verification, but its pin store is keyed by `host`/IP.
+TVgrip supplies the separate persisted-TV-record pattern. Greenfield4 therefore harvests the
+certificate-checking mechanism but explicitly binds the pin to its own paired-device record; route,
+mDNS name and MAC-like discovery metadata are not the cryptographic identity.
+
+**Verified:** Re-read ScreenCast @ `7e66bbe7`:
+`AndroidTvCertStore.getServerPin(host)` / `pinServer(host,...)`,
+`AndroidTvRemote` pair/connect/forget by `device.host`, and
+`AndroidTvPersistence` separately stores a stable device key plus last-known host. Re-read TVgrip
+merge `42a1c151`: `serverCertSha256` is a field on the persisted `TvDeviceEntity`/`TvDevice`.
+No hardware result is inferred from either implementation.
+
+**Learned:** Pinning feasibility and identity association are separate questions. A working pin check
+does not make the key used to look up that pin a trustworthy device identity.
+
+**Dead ends:** None. The correction strengthens the existing invariant rather than reopening broad
+Android TV protocol research.
+
+**Next:** Let PR #15 CI re-run on the corrected head, keep the PR open for independent review, and
+do not start another generic client-library survey for the harvested mechanics.
