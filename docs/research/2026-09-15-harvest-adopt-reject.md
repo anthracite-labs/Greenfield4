@@ -183,8 +183,9 @@ separates that release gate from the smaller set that must be known before disco
 
 Samsung's structural first-use conclusion does **not** depend on running SAM-17(a): the source-level
 problem is the absence of an independently authenticated TV identity on first contact. Its discovery
-gate is therefore the product-owner residual-risk disposition, not another attempt to empirically
-re-prove the same absence. Samsung certificate stability, substituted-cert handling, token/recovery
+gate was therefore the product-owner residual-risk disposition, which was **accepted on
+2026-09-15**. No further Samsung first-use research is required unless contradictory primary
+evidence appears. Samsung certificate stability, substituted-cert handling, token/recovery
 behaviour, and the remaining Android reconnect/persistence rows remain important implementation and
 release-conformance work.
 
@@ -223,11 +224,16 @@ Resolved as engineering-pattern questions:
 - IRDB/LIRC no longer need broad licensing research.
 
 Still genuinely open:
-1. product-owner disposition of Samsung first-use residual risk;
-2. targeted physical-hardware evidence for the device-side/security facts listed above;
-3. human vendor terms/legal review;
-4. product-owner/legal acceptance or rejection of IRDB obligations;
-5. final product name/slug and focused clearance.
+1. targeted physical-hardware evidence for the Android TV device-side/security facts listed above;
+2. human vendor terms/legal review;
+3. product-owner/legal acceptance or rejection of IRDB obligations;
+4. final product name/slug and focused clearance.
+
+**Samsung product-owner disposition (2026-09-15): ACCEPT.** Samsung remains in V1 with the
+documented stock-remote first-use MITM residual risk consciously accepted. This acceptance is narrow:
+it does not authorize global certificate bypass, insecure fallback, silent identity replacement, or
+weaker reconnect handling. Greenfield must pin the paired TV identity after the approved pairing
+flow and fail closed on unexpected identity changes.
 
 No application-stack decision is made here. Architecture remains locked until the discovery exit
 criteria are deliberately reconciled and approved.
