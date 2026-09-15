@@ -800,3 +800,28 @@ known mechanics, without reducing the release evidence needed for honest Tested 
 **Next:** Read CI on the final PR head and leave PR #16 open for independent review.
 
 **Issue:** #14 · **PR:** #16
+
+
+---
+
+## 2026-09-15 — Product-owner decision: accept Samsung first-use residual risk
+
+**Decision:** The product owner explicitly chose **ACCEPT** for the documented Samsung stock-remote
+first-use MITM residual risk. Samsung remains in the V1 ecosystem direction.
+
+**Scope of acceptance:** This accepts only the unavoidable first-contact limitation documented in
+the security trust model and Issue #14 reconciliation: the stock remote path has no independently
+authenticated TV identity before first pairing, so TOFU cannot authenticate that first connection.
+
+**Not accepted / still mandatory:** This decision does not authorize a global trust-all TLS mode,
+plaintext/insecure fallback, silent replacement of an existing paired identity, or weakened
+credential handling. Greenfield must still capture/persist the TV identity after the user-approved
+pairing flow, bind it to the paired-device record rather than IP/host, require it on reconnect, fail
+closed on mismatch, and require explicit re-pairing after an unexpected identity change.
+
+**Effect on discovery:** The Samsung first-use conflict is closed as a product-owner decision and is
+no longer a discovery blocker. Remaining discovery gates are the decision-critical Android TV
+hardware probes, human vendor/legal review, IRDB obligation disposition, naming, and final PRODUCT
+review before architecture.
+
+**Issue:** #14 · **PR:** #16
