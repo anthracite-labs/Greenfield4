@@ -689,3 +689,84 @@ conflict stays an open product-owner decision; ADR-0005, `config/project.env`, t
 lifecycle state, and every `[HARDWARE-required]` caveat are untouched.
 
 **Issue:** #11 · **PR:** #12 (body rewritten to current state; still open, not self-merged)
+
+
+---
+
+## 2026-09-15 — Harvest / Adopt / Reject reconciliation and targeted upstream pass
+
+**Context:** Issue #14, branch `research/14-harvest-adopt-reject`, `PROJECT_PHASE=discovery`.
+
+**Did:** Reconciled the existing Samsung Tizen / Android TV Remote-v2 trust research without
+reopening accepted findings. Added
+`docs/research/2026-09-15-harvest-adopt-reject.md` as the durable matrix and updated
+`docs/PRODUCT.md` plus the existing hardware matrix with the evidence-reuse rule requested by the
+product owner: **Harvest** mature OSS mechanics, **Adopt** only patterns that satisfy Greenfield
+invariants, and **Reject** compatibility shortcuts that weaken trust or obscure legal/licensing
+gates. No prior hardware row was marked passed and no lifecycle state changed.
+
+**Verified evidence in this pass:**
+- `xchwarze/samsung-tv-ws-api@e48d6377` still disables peer validation with `CERT_NONE`; its
+  token/file flow is interoperability evidence, not a Greenfield trust posture.
+- `sturlese/tvremote-app@7880e2c0` demonstrates Samsung Zeroconf/IP discovery, Allow/Deny +
+  token reuse, and OS SecureStore, while also demonstrating a broad iOS
+  `NSAllowsArbitraryLoads=true` compatibility bypass that Greenfield rejects.
+- `Perun85/Samsung.SmartTv.Client@ceb07002` exposes `IRemoteCertificateValidator`, proving that
+  application-controlled Samsung peer-certificate validation is technically feasible even though
+  its default validator accepts all certificates.
+- `tronikos/androidtvremote2@b09f2143` remains a strong Remote-v2 interoperability reference:
+  persistent client certificate/key and peer-cert use during pairing, but `CERT_NONE` for server
+  authentication.
+- `Home Assistant core@ec2a00de` uses `androidtvremote2`, persistent cert/key paths and
+  `_androidtvremote2._tcp` discovery, corroborating those mechanics as established production
+  practice.
+- `SebghatYusuf/android_remote@130badad` demonstrates platform secure storage for the client
+  certificate/key but accepts the TV certificate unconditionally; storage pattern harvested,
+  trust-all posture rejected.
+- `ddagunts/ScreenCast@7e66bbe7` provides the strongest Android reconnect precedent: Android
+  Keystore-derived encrypted client-credential storage, server-certificate SHA-256 captured only
+  after successful pairing, strict 6466 reconnect pin, and fail-closed mismatch handling. One
+  Greenfield hardening was identified: its pin store is host-keyed, so Greenfield must bind pins to
+  a paired-device record rather than IP/host and let discovery update only the route.
+- Google AOSP `google-tv-pairing-protocol@7c99785` was rechecked: `PairingSession::SetSecret`
+  performs the input-side local gamma check before transmitting Secret; `OnSecretMessage` calls
+  `VerifySecret` and sends SecretAck only after a valid full Secret. This preserves the existing
+  protocol/reference conclusion and does not upgrade contemporary firmware conformance.
+- Current Samsung Developer public docs were reached. Smart View is documented as a sender +
+  receiver application model with TLS support; targeted public searches did not surface official
+  documentation for the community stock-TV `samsung.remote.control` / `ms.remote.control`
+  endpoint. Samsung Developer Portal Terms of Use currently show effective date 2026-01-29. These
+  facts narrow the remaining work to human/legal review; absence of stock-remote docs is not proof
+  of prohibition.
+- `probonopd/irdb@11aa5eb3` reconfirms the custom permission: prior notification, required notice,
+  and up to three licensed copies/units on request; network/CDN access carries the same obligations.
+  `probonopd/lirc-remotes@e4a75804` identifies provenance but still supplies no explicit
+  database/config-data license in the primary repo.
+
+**Research decisions:** Discovery/pairing mechanics, secure credential storage, and reconnect
+pinning are no longer broad literature-research gaps. They are harvested engineering patterns.
+Global certificate bypass, plaintext credential storage, host/IP as security identity, and
+"LIRC is GPL therefore the data is cleared" are rejected. Samsung first-use identity remains a
+product-owner residual-risk decision; Android practical 8-bit first-use strength remains dependent
+on targeted hardware retry/session evidence; vendor terms remain human/legal; IRDB is conditional
+on explicit obligation acceptance.
+
+**Verification:** Attempted a fresh local clone in the execution container to run
+`bash scripts/verify.sh`; it failed before checkout with
+`Could not resolve host: github.com`. Therefore no local gate result is claimed in this session.
+The branch is docs-only; executable verification must be taken from GitHub Actions on the exact PR
+head after the PR is opened. `config/project.env` was not changed and remains discovery with the
+application-stack guard enabled.
+
+**Learned:** Mature OSS can legitimately close an *engineering research* question without closing a
+Greenfield security or release-evidence question. The most useful delta from the second pass is the
+identity-model refinement: certificate pinning is harvestable, but the pin must belong to the paired
+device, never to its transient network address.
+
+**Next:** Review the real PR diff and CI. Then the remaining discovery work is intentionally narrow:
+(1) product-owner Samsung first-use risk disposition, (2) targeted decision-critical hardware
+evidence plus later release conformance, (3) human vendor-terms review, (4) accept/reject IRDB
+obligations, and (5) final name/slug. Do not restart broad protocol/OSS research unless contradictory
+primary evidence appears.
+
+**Issue:** #14
