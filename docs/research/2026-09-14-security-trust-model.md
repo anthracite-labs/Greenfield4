@@ -94,7 +94,27 @@ address the client chose to connect to.
 
 ## 1.4 What authenticates the client to the TV
 
-Possession of the bearer token, plus the fact that the user previously pressed "Allow" on the TV.
+**What the reference client presents** [VERIFIED — client]: the opaque token value it received from
+the TV after the user pressed "Allow" on the on-TV popup, sent as a `?token=` query parameter on the
+secure 8002 path (§1.5).
+
+**What that proves** — deliberately not overstated, and consistent with §1.7:
+
+- **[VERIFIED — client]** The client authenticates itself by presenting that opaque token. No
+  certificate, public key, or device identity is bound into it, and the client proves nothing beyond
+  presenting it.
+- **[INFERRED]** Bearer semantics are therefore the correct **planning assumption**: possession is
+  likely sufficient, because the client demonstrates nothing else. This is the assumption
+  Greenfield4 must defend against.
+- **[UNRESOLVED]** The TV's complete server-side authentication and token-association rule. The
+  firmware may additionally bind the token to a client name, session, or network address. **This is
+  not proven to be unconditional simple possession on every target Samsung TV**, because no
+  server-side source or specification was available (unlike the Android TV track, which has AOSP).
+- **[HARDWARE-required]** What the TV actually requires of a presenting client, including whether a
+  copied token from another device is accepted.
+
+This scoping does **not** weaken the separate first-use finding: whatever the TV later does with the
+token, no authenticated TV identity has been demonstrated for the initial connection (§1.10).
 
 ## 1.5 The token flow, as implemented
 
@@ -309,26 +329,100 @@ The server certificate is obtained via `client.getPeerCertificate()` — that is
 as observed by the client on this connection** [VERIFIED], not a certificate fetched from a trust
 store. This is the fact that makes the digest a channel-binding construction.
 
-## 2.6 The client-side check byte, and what it is not
+## 2.6 The deployed gamma: an 8-bit alpha prefix plus a 16-bit nonce
 
-Both implementations compare **one byte** before sending:
+### 2.6.1 Deployed Remote v2 structure
+
+Both deployed clients treat the six-hex-symbol code as **three bytes** with a fixed split:
 
 - `kud`: `if (hashArray[0] !== codeBytes[0]) { client.destroy(new Error("Bad Code")); return false }`
+  — then hashes `code.slice(2)`.
 - `androidtvremote2`: `if hash_result[0] != int(pairing_code[0:2], 16): raise InvalidAuth(...)`
+  — after validating `len(pairing_code) == 6` and `bytes.fromhex(pairing_code)`, and hashing
+  `pairing_code[2:]`.
 
-[VERIFIED both.]
+[VERIFIED — deployed client, both pinned commits.]
 
-Read together with §2.5, the code layout is: **byte 0 is an 8-bit check byte derived from the
-digest, and bytes 1–2 are the secret input.** The client recomputes the digest and confirms its
-first byte matches the displayed check byte before transmitting.
+So the deployed layout is:
 
-Two things follow, and both matter:
+| Field | Width | Role |
+| :-- | :-- | :-- |
+| **alpha prefix** | **8 bits** (byte 0, 2 hex symbols) | The **out-of-band authenticator** — see §2.7.6 |
+| **nonce** | **16 bits** (bytes 1–2, 4 hex symbols) | Freshness, and the value alpha is computed over |
 
-- This check is a **cheap client-side sanity check, not the security mechanism.** Eight bits is
-  trivially guessable at 1/256. Anyone treating it as the binding is mistaken.
-- The security mechanism is the **full 32-byte digest** sent to the TV as
-  `pairingSecret.secret` [VERIFIED both], which the TV is expected to verify against its own
-  computation.
+Both clients then transmit the **full 32-byte alpha** in `pairingSecret.secret` /
+`msg.secret.secret`. [VERIFIED — deployed client]
+
+### 2.6.2 AOSP reference structure, and where the two differ
+
+`PoloChallengeResponse.getGamma()` (blob `81095fd`) [VERIFIED — protocol/reference]:
+
+```java
+public byte[] getGamma(byte[] nonce) throws PoloException {
+    byte[] alphaBytes = getAlpha(nonce);
+    assert(alphaBytes.length >= nonce.length);
+    byte[] result = new byte[nonce.length * 2];
+    System.arraycopy(alphaBytes, 0, result, 0, nonce.length);
+    System.arraycopy(nonce, 0, result, nonce.length, nonce.length);
+    return result;
+}
+```
+
+So the **structure** (alpha prefix ‖ nonce) is identical in both. Two differences exist, and both
+are recorded without diagnosing either as a bug:
+
+1. **Prefix width.** AOSP copies `nonce.length` **bytes** of alpha as the prefix; deployed Remote v2
+   uses **1 byte** with a 2-byte nonce. Under the AOSP formula a 2-byte nonce would give a 2-byte
+   (16-bit) prefix, so the deployed format carries an **8-bit** prefix where AOSP's formula would
+   give 16 bits.
+2. **Parity.** AOSP `extractNonce()` begins
+   `if ((gamma.length < 2) || (gamma.length % 2 != 0)) throw new IllegalArgumentException();`, and
+   `checkGamma()` returns false on that exception. A **3-byte** gamma — which is what deployed
+   Remote v2 uses — is therefore **rejected by the AOSP reference `checkGamma()`**. The deployed
+   format is not wire-compatible with this particular reference build.
+
+**AOSP's own sizing arithmetic is internally inconsistent, so it is quoted rather than relied on.**
+`PairingSession.doPairingPhase()` (blob `8baccf4`) computes, for the output device:
+
+```java
+int symbolLength  = mSessionConfig.getEncoding().getSymbolLength();   // 6
+int nonceLength   = symbolLength / 2;                                 // 3
+int bytesNeeded   = nonceLength / mEncoder.symbolsPerByte();          // 3 / 2 = 1
+byte[] nonce      = new byte[bytesNeeded];                            // 1 byte
+```
+
+`cpp/.../pairingsession.cc` (blob `011c913`) is identical:
+`nonce_length = symbol_length()/2; bytes_needed = nonce_length / encoder_->symbols_per_byte();`.
+This mixes symbol and byte units: it declares 6 symbols, divides to 3, then divides again by
+`symbolsPerByte()` (2 for `HexadecimalEncoder`) to reach a **1-byte** nonce — which under
+`getGamma()` yields a **2-byte / 4-symbol** gamma, not the 6 symbols declared. `IsValidEncodingOption`
+separately requires only `symbol_length % 2 == 0 && symbol_length >= 2`.
+
+**No conclusion is drawn from that arithmetic.** It is quoted so an independent reviewer can see
+exactly what is ambiguous. What *is* established is the deployed structure, which comes from two
+deployed clients that must agree with real TVs in order to pair at all.
+
+### 2.6.3 Security significance of the prefix width — corrected
+
+**An earlier version of this document said the 8-bit check was "a cheap client-side sanity check,
+not the security mechanism", and that "the security property derives from … not from the prefix
+width". Both statements were wrong and are withdrawn.**
+
+The alpha prefix is **the out-of-band authenticator**. It is the only component of the pairing that
+travels from the physical TV to the phone through the **user** rather than through the network, and
+it is therefore the only thing that can detect a mismatch between the key material the phone
+observed and the key material the TV actually holds. Its width is not an implementation detail:
+**the deployed format provides 8 bits of out-of-band authentication per pairing attempt.**
+
+The full 32-byte alpha is not a substitute for it. That alpha is sent **in-band**, over the very
+channel whose integrity is in question, and all of its inputs except the nonce are public
+certificate material. It provides *complete verification for the leg it is sent on* — see the
+walkthrough in §2.7.6 — but it does **not** add 256 bits of independent out-of-band authentication
+across two separately terminated TLS sessions.
+
+Digest length and out-of-band authentication entropy are different quantities and must never be
+conflated: **alpha is 256 bits wide; the user-transferred binding that makes alpha meaningful
+against an active attacker is 8 bits wide.**
 
 **Correction (2026-09-14, after independent review).** An earlier version of this document called
 the byte split in `kud` a "genuine defect". **That claim was wrong and is withdrawn.** For a valid
@@ -357,16 +451,17 @@ What remains is a **narrower finding about malformed input, not about protocol h
 `0x…` input poorly. This is an API ergonomics/validation issue in one library. It is **not** a
 protocol defect, and it is not presented as one.
 
-**One genuine open question, stated without a diagnosis.** The deployed clients use a **1-byte**
-alpha prefix with a 2-byte nonce (3-byte / 6-symbol gamma), while AOSP `getGamma()` builds gamma
-from `nonce.length` **bytes** of alpha prefix. The *structure* (alpha prefix ‖ nonce) is confirmed
-by AOSP; the prefix **width** in deployed Android TV Remote v2 differs from this 2009-era reference.
-This is recorded as an **[UNRESOLVED]** reconciliation item to confirm on hardware, **not** as a
-defect: both peers of a working pairing evidently agree, and the security property derives from both
-sides computing alpha over the same nonce and the same two certificates, not from the prefix width.
-The AOSP arithmetic here is itself not internally consistent about units — `PairingSession.java`
-computes `nonceLength = symbolLength / 2` and then `bytesNeeded = nonceLength /
-mEncoder.symbolsPerByte()`, which mixes symbol and byte units — so no conclusion is drawn from it.
+### 2.6.4 Reconciliation status
+
+| Question | Classification |
+| :-- | :-- |
+| AOSP gamma = alpha prefix ‖ nonce; `checkGamma` recomputes and compares | **[VERIFIED — protocol/reference]** blob `81095fd` |
+| Deployed gamma = 8-bit alpha prefix ‖ 16-bit nonce | **[VERIFIED — deployed client]** both pinned clients |
+| Deployed prefix is 8 bits where AOSP's formula would give 16 for that nonce size | **[VERIFIED — derived]** direct comparison of the two constructions above |
+| AOSP `extractNonce` rejects the odd-length 3-byte gamma that deployed clients use | **[VERIFIED — protocol/reference]** `gamma.length % 2 != 0` guard |
+| AOSP symbol/byte arithmetic is ambiguous; its intended deployed nonce width is not determinable from this source | **[UNRESOLVED]** quoted in §2.6.2, no conclusion drawn |
+| Why deployed Remote v2 differs from the 2009 reference | **[UNRESOLVED]** — not diagnosed as a bug; no evidence establishes one |
+| Whether target devices accept a 6-symbol code and how they size the nonce/prefix | **[HARDWARE-required]** |
 
 ## 2.7 Does the TV-displayed code cryptographically bind the server identity?
 
@@ -501,6 +596,80 @@ pairing failure that never reaches the TV, which would be misread as server-side
 has been redesigned to separate the rejection points. See
 [`2026-09-14-hardware-validation-matrix.md`](2026-09-14-hardware-validation-matrix.md).
 
+### 2.7.6 Threat model: terminating active MITM
+
+This section exists because the previous version of this document reasoned only about the
+honest client/server flow. The security question that matters is what happens under an **active
+attacker who terminates two separate TLS sessions**.
+
+**Setup.** Mallory is on the LAN and runs two independent TLS legs:
+
+- **Leg 1 (phone ↔ Mallory).** The phone presents its real client certificate `C` (key `K_C`).
+  Mallory presents a certificate `M1` (key `K_M1`) as the "TV". Because clients set
+  `rejectUnauthorized:false` (§2.3), the phone accepts this without complaint.
+- **Leg 2 (Mallory ↔ TV).** Mallory presents a certificate `M2` (key `K_M2`) as the "client". The TV
+  presents its real certificate `S` (key `K_S`).
+
+**Flow.**
+
+1. The TV generates nonce `N` (2 bytes) and computes
+   `alpha_TV = SHA-256(K_M2 ‖ K_S ‖ N)` — using the client key it sees (`K_M2`) and its own key
+   (`K_S`).
+2. The TV displays `gamma = alpha_TV[0:1] ‖ N` as six hex symbols **on its screen**.
+3. The **user** reads gamma off the screen and types it into the phone. This transfer does not
+   traverse the network, which is the entire point of it.
+4. The phone extracts the nonce `N` from the typed code and computes
+   `alpha_phone = SHA-256(K_C ‖ K_M1 ‖ N)` — using its own key and the "server" key it observed
+   (`K_M1`).
+5. The phone compares `alpha_phone[0]` against the displayed `alpha_TV[0]`.
+6. Only if that byte matches does the phone transmit `alpha_phone` (32 bytes).
+
+**Result.** `alpha_TV` and `alpha_phone` are digests over different key material whenever Mallory
+uses different keys on the two legs. Their first bytes therefore agree with probability **1/256**
+per attempt.
+
+- **255/256 of the time** the phone aborts locally and **never transmits**. Mallory learns nothing.
+- **1/256 of the time** the phone transmits `alpha_phone`. Mallory now knows
+  `alpha_phone = SHA-256(K_C ‖ K_M1 ‖ N)` where `K_C` and `K_M1` are both public certificates he
+  already holds, so he recovers `N` by exhaustive search over **2^16** candidates — milliseconds of
+  work. With `N` he computes the *correct* alpha for leg 2, `SHA-256(K_M2 ‖ K_S ‖ N)`, and forwards
+  it. **The TV's server-side verification succeeds and it sends SecretAck.** Mallory is now a
+  persistent man-in-the-middle for that pairing.
+
+Note the ordering: the 8-bit gate is the binding constraint. The 2^16 nonce search is not a
+meaningful barrier on its own, and Mallory cannot even begin it until the gate has passed, because
+`N` never appears on the wire — it reaches the phone only through the user.
+
+**What each component actually defends.** [ANALYSIS — derived from the [VERIFIED] constructions in
+§2.5, §2.6 and §2.7; no attack was executed in this session.]
+
+| Component | Property it provides | Property it does **not** provide |
+| :-- | :-- | :-- |
+| **8-bit alpha prefix** (transferred by the user) | The **only** out-of-band authenticator: it detects that the key material the phone observed differs from the key material the TV holds. This is the whole defence against a terminating MITM. | Not more than 8 bits. It is not a 256-bit binding. |
+| **16-bit nonce** | Freshness — a new nonce per pairing session, so an old gamma cannot be replayed. | **Not** an authenticator. It is displayed on screen, and is recoverable offline in 2^16 once any alpha is observed. |
+| **32-byte full alpha** (in-band) | **Complete verification for the leg it is sent on**: the receiver recomputes alpha and equality-compares all 256 bits, so any mismatch between what the sender computed and what the receiver computes is caught. | It does **not** bind the two legs together. Once `N` is known, an attacker computes each leg's alpha independently and both verifications pass. It adds **no** out-of-band authentication. |
+
+**Conclusion, stated precisely.** Against a terminating active MITM, Android TV Remote v2 pairing
+provides **8 bits of out-of-band authentication per pairing attempt**. Each retry generates a fresh
+nonce and therefore an independent 1/256 chance, so with unlimited unthrottled attempts the expected
+number of tries to succeed is on the order of 10^2. Whether that is practically exploitable depends
+almost entirely on controls that are **[HARDWARE-required]** and are not visible in any source read
+here: attempts allowed per displayed code, whether a failure rotates the code, retry delay, rate
+limiting, lockout/backoff, code lifetime, and whether a new pairing session can be started remotely
+without fresh user approval.
+
+**What this does and does not mean.**
+
+- It does **not** mean Android TV is fundamentally unsafe. The mechanism is real, it is enforced
+  server-side, and it forces an active attacker to gamble per attempt rather than succeed
+  deterministically. This is a **bounded residual risk**, materially stronger than Samsung, where
+  no code exists at all (§1.6, §1.10).
+- It also does **not** mean first-use authentication is cryptographically strong. **8 bits is not
+  256 bits, and "the server verifies a 256-bit alpha" must never be read as 256 bits of
+  out-of-band authentication.** Greenfield4's PRODUCT.md requires refusing an unsafe connection
+  with no global ignore-security mode, and an 8-bit binding plus unknown retry controls does not
+  by itself satisfy that.
+
 ## 2.8 Does successful pairing compensate for disabled PKI validation?
 
 **Partly, and only for the pairing phase.**
@@ -512,8 +681,14 @@ protects the nonce. Under the reference protocol this is a genuine compensation 
 `rejectUnauthorized: false` **at pairing time** — and, importantly, it is a *server-side* check, so
 it does not depend on the client's local one-byte check.
 
-The remaining uncertainty is not "does the protocol verify?" but "does the device?" — see the
-[HARDWARE-REQUIRED] row in §2.7.5.
+**Bounded, not absolute.** Against a terminating active MITM the compensation is worth **8 bits of
+out-of-band authentication per attempt**, not 256 — the full alpha verifies the leg it is sent on
+but does not bind two separately terminated legs together (§2.7.6). The compensation is therefore
+real but **partial**, and its practical strength depends on retry/rate-limiting controls that are
+[HARDWARE-required].
+
+The remaining uncertainties are thus threefold, not one: does the device enforce it, does it
+rate-limit attempts, and is 8 bits plus those controls enough for Greenfield4's requirement?
 
 It does **not** extend to the remote session. On reconnects over port 6466 there is no code, no
 digest, and no user action — just `rejectUnauthorized: false` / `CERT_NONE` (§2.3). So the
@@ -575,36 +750,45 @@ that it works on Greenfield4's target devices, and it is not generalised from th
 
 ## 2.12 First-use MITM resistance
 
-**PARTIAL — but the *nature* of the residual gap changed materially with the AOSP evidence.**
+**PARTIAL. The mechanism is verified; its strength is bounded and partly hardware-dependent.**
 
-Corrected split:
+Three separate properties, which must not be collapsed:
 
-- **[VERIFIED — protocol]** The reference protocol resists first-use MITM *by construction and on
-  the server side*: alpha binds both peers' RSA public keys and the nonce, and the output device
-  recomputes and equality-compares it, rejecting a mismatch with
-  `kErrorInvalidChallengeResponse` and withholding SecretAck (§2.7.3). This is a real cryptographic
-  binding, and it is the thing Samsung entirely lacks.
-- **[HARDWARE-REQUIRED]** Whether **contemporary target firmware** still enforces that check. The
-  AOSP tree is a protocol reference implementation (Java files © 2009, C++ © 2012), not the
-  shipping Remote Service on a 2026 device. Conformance is **not** assumed, and is the subject of
-  the redesigned **ATV-17**.
-- **[VERIFIED — protocol]** The user must genuinely read gamma off the physical TV and enter it into
-  the phone. The protocol cannot detect a user who types a code an attacker supplied, and the
-  client-side `checkGamma` is only a local sanity check (§2.6).
+1. **Server-side full-alpha verification exists** — **[VERIFIED — protocol/reference]**. The output
+   device recomputes alpha and equality-compares all 256 bits, rejecting a mismatch with
+   `kErrorInvalidChallengeResponse` and withholding SecretAck (§2.7.3). "Does the reference protocol
+   verify?" is settled: it does.
+2. **The out-of-band binding that makes verification meaningful against an active attacker is
+   8 bits** — **[VERIFIED — deployed client]** for the format (§2.6.1), **[ANALYSIS — derived]** for
+   the consequence (§2.7.6). In the deployed six-symbol format the user transfers an 8-bit alpha
+   prefix plus a 16-bit nonce. Only the prefix is an authenticator; the nonce is not, and the 32-byte
+   alpha does not bind two separately terminated TLS legs. Against a terminating MITM the attacker
+   clears the prefix gate with probability **1/256 per attempt**, then recovers the 16-bit nonce
+   offline in milliseconds and completes both legs.
+3. **Whether contemporary firmware enforces any of it, and how it throttles attempts** —
+   **[HARDWARE-required]**. The AOSP tree is a reference implementation (Java © 2009, C++ © 2012),
+   not a 2026 device. Attempts per code, rotation on failure, retry delay, rate limiting, lockout,
+   and code lifetime are invisible to every source read here and are what determine whether ~10^2
+   expected attempts is practical (§2.7.6, and tests ATV-17*, ATV-21 … ATV-28).
 
-**Not over-corrected.** "The protocol verifies" is now proven; "the device verifies" is not. This
-document does **not** upgrade Android TV to VERIFIED overall, because three things remain
-unproven and none of them are answered by source code: current-device conformance, reconnect-time
-server-identity persistence, and real-hardware behaviour (§2.9, §2.10, §2.11).
+**Position.** This is a **bounded residual risk, not a demonstrated vulnerability and not a
+cryptographically strong first-use authentication.** It is materially stronger than Samsung, where
+no user-transferred code exists at all (§1.6, §1.10). It is weaker than "the server verifies a
+256-bit alpha" sounds, and the two must never be equated.
+
+**Not over-corrected in either direction.** Android TV is **not** declared fundamentally unsafe —
+the mechanism forces an attacker to gamble per attempt rather than succeed deterministically. It is
+also **not** upgraded to VERIFIED: device conformance, throttling behaviour, reconnect identity
+persistence, and real-hardware behaviour all remain unproven (§2.9–§2.11).
 
 ## 2.13 Android TV / Google TV assessment
 
 | Concern | State |
 | :-- | :-- |
 | TLS transport validation | **UNSAFE / FAILS REQUIREMENT** in the reference posture (`rejectUnauthorized:false` / `CERT_NONE` on both ports, both implementations) [VERIFIED] |
-| Pairing authentication | **PARTIAL** — alpha binds client cert, server cert and nonce, and the output device verifies it **[VERIFIED — protocol]** (§2.7); current-device conformance **[HARDWARE-REQUIRED]** (ATV-17) |
+| Pairing authentication | **PARTIAL** — output device verifies full alpha **[VERIFIED — protocol/reference]** (§2.7); OOB binding is **8 bits** per attempt **[VERIFIED — deployed client]** + derived (§2.6, §2.7.6); device conformance and throttling **[HARDWARE-required]** |
 | Persistent device identity | **PARTIAL** — client identity is well-defined and persisted [VERIFIED — client]; **server identity is persisted by neither reference client** [VERIFIED — client], so Greenfield4 must add it |
-| First-use trust | **PARTIAL** — protocol-level resistance now **[VERIFIED — protocol]**; whether target firmware enforces it is **[HARDWARE-REQUIRED]**; user must read gamma off the physical TV |
+| First-use trust | **PARTIAL — bounded.** Mechanism **[VERIFIED — protocol/reference]**; strength **8 bits/attempt** by construction; practical resistance depends on **[HARDWARE-required]** throttling. **Not** cryptographically strong first-use authentication |
 | Reconnect trust | **UNSAFE / FAILS REQUIREMENT** as-is; **viable fail-closed design exists** [PROPOSED MITIGATION], pending hardware proof |
 | Certificate/public-key pinning viability | **PARTIAL** — mechanism is straightforward and does not require a trust-all mode [PROPOSED MITIGATION]; stability **[HARDWARE-REQUIRED]** |
 
@@ -618,23 +802,26 @@ server-identity persistence, and real-hardware behaviour (§2.9, §2.10, §2.11)
 | :-- | :-- | :-- |
 | Authenticates TV → client | Nothing (cert unverified) | Nothing at TLS layer; during pairing the **output device verifies alpha server-side** **[VERIFIED — protocol]** |
 | Authenticates client → TV | Opaque token presented by client; **server-side association rule [UNRESOLVED]** | Client certificate (mutual TLS) |
-| User physically verifies | On-TV "Allow" popup — binds nothing | 6 hex symbols (gamma) shown on TV — nonce bound into alpha |
+| User physically verifies | On-TV "Allow" popup — binds nothing | 6 hex symbols (gamma): **8-bit alpha prefix (the authenticator)** + 16-bit nonce |
 | Cryptographic binding at pairing | **None found in the client-observable path** | Client cert + server cert + nonce → SHA-256 (alpha), **verified by the output device** |
 | Persistable identity | Token (opaque; bearer semantics **[INFERRED]**) + capturable cert fingerprint | Client cert (verified) + capturable server cert/SPKI |
 | On identity change | Undetected | Client→TV: TV resets, `unpaired`. TV→client: undetected without pinning |
-| First-use MITM | **Not established** | **Protocol-verified; target-device conformance unproven** |
+| First-use MITM | **Not established** | **Mechanism verified; strength bounded at 8 bits/attempt; conformance + throttling unproven** |
 | Reconnect protection | None as-is | None as-is; fail-closed pinning is viable |
 
-The ecosystems must not be treated as one trust model, and the difference between them is now
-sharper than in the previous version of this document. Android TV has a **protocol-level,
-server-side cryptographic binding** at pairing — documented in pinned AOSP source, not inferred —
-which Samsung entirely lacks in its client-observable path. Samsung is materially weaker on first
-use, and that gap is now a *protocol* gap rather than merely an *evidence* gap.
+The ecosystems must not be treated as one trust model. Samsung offers **no** user-transferred
+authenticator: the user only presses "Allow", so there is nothing for an attacker to fail to match,
+and no first-use binding of any strength. Android TV offers a **real but bounded** one: a
+server-verified challenge-response plus an 8-bit out-of-band authenticator.
+
+The difference is one of **kind and degree together** — Android TV has a mechanism Samsung lacks
+entirely, but that mechanism is an 8-bit-per-attempt binding, not a 256-bit one. Neither ecosystem
+is first-use secure to Greenfield4's product bar on current evidence.
 
 What has **not** changed: both ecosystems are equally weak on reconnect until Greenfield4 adds
-server-identity persistence, and Android TV's protocol-level guarantee is still subject to
-**[HARDWARE-REQUIRED]** confirmation that target firmware enforces it. A protocol guarantee on
-paper is not a device guarantee in the hand.
+server-identity persistence, and Android TV remains subject to **[HARDWARE-required]** confirmation
+of both device conformance and throttling behaviour. A protocol guarantee on paper is not a device
+guarantee in the hand.
 
 ## 3.2 The six questions
 
@@ -642,11 +829,13 @@ paper is not a device guarantee in the hand.
 - Samsung: **NO, not from the protocol.** The token is unbound and the certificate is unverified. A
   capturable certificate fingerprint is a candidate identity, but it inherits whatever the network
   was at first pairing. **[HARDWARE-REQUIRED]** for stability.
-- Android TV: **PARTIALLY, with a firmer basis than Samsung.** The client identity is solid
-  [VERIFIED — client]. A server identity is capturable, and at pairing the protocol binds both
-  certificates into alpha and has the **output device verify it** **[VERIFIED — protocol]**. What
-  remains open is narrower than before: whether target firmware conforms, which is
-  **[HARDWARE-REQUIRED]** (ATV-17), not a gap in the protocol design.
+- Android TV: **PARTIALLY, with a firmer basis than Samsung — but bounded.** The client identity
+  is solid [VERIFIED — client]. A server identity is capturable, and at pairing the protocol binds
+  both certificates into alpha and has the **output device verify it**
+  **[VERIFIED — protocol/reference]**. Two things bound how far that goes: at first use the
+  user-transferred authenticator is **8 bits** (§2.6, §2.7.6), and whether target firmware conforms
+  and throttles is **[HARDWARE-required]**. So this is "identity can be established with a bounded
+  first-use guarantee", not "identity is established strongly".
 
 **2. Can it safely persist that identity?**
 - Samsung: **[PROPOSED MITIGATION]** — pinning is feasible; the reference client offers no storage
@@ -668,17 +857,24 @@ paper is not a device guarantee in the hand.
 **5. Is first-use MITM resistance demonstrated?**
 - Samsung: **NO.** Not established by any available evidence. Recorded as unresolved, not as
   mitigated.
-- Android TV: **NO — not demonstrated on any device, but now for a much narrower reason.** The
-  protocol-level resistance is **[VERIFIED — protocol]**: the output device recomputes alpha and
-  rejects a mismatch before sending SecretAck (§2.7.3). What is unproven is whether *contemporary
-  target firmware* enforces it. That is **[HARDWARE-REQUIRED]** and is the explicit question ATV-17
-  now answers. No interception has been executed in this session. **PARTIAL**, deliberately not
-  upgraded to VERIFIED.
+- Android TV: **NO — and the honest answer distinguishes mechanism from strength.**
+  - *Mechanism*: **[VERIFIED — protocol/reference]** — the output device recomputes alpha and
+    rejects a mismatch before sending SecretAck (§2.7.3). Settled for the reference protocol.
+  - *Strength*: **[ANALYSIS — derived, §2.7.6]** — against a terminating active MITM the
+    out-of-band binding is **8 bits per attempt**; the 32-byte alpha verifies the leg it is sent on
+    but does not bind two separately terminated legs. The attacker must clear 1/256 per attempt.
+  - *Device behaviour*: **[HARDWARE-required]** — whether target firmware enforces it, and whether
+    attempt throttling makes ~10^2 expected attempts impractical.
+  No interception has been executed in this session. **PARTIAL**, deliberately not upgraded: a
+  verified mechanism with a bounded guarantee is not the same as demonstrated resistance, and the
+  two must not be reported as one.
 
 **6. What remains dependent on hardware evidence?**
 Everything in `docs/research/2026-09-14-hardware-validation-matrix.md` — certificate stability
-across reboot/firmware/reset, MITM detection, token rotation, and reconnect behaviour under network
-change. None of it was executed.
+across reboot/firmware/reset, MITM detection, token rotation, reconnect behaviour under network
+change, **and now pairing-attempt throttling (attempts per code, rotation on failure, retry delay,
+rate limiting, lockout, code lifetime)**, which the Android TV first-use assessment in §2.7.6 and
+§2.12 depends on materially. None of it was executed.
 
 ## 3.3 Mapping against existing invariants
 

@@ -512,3 +512,62 @@ still discovery); no requirement in PRODUCT.md or DOMAIN.md weakened; the Samsun
 remains an open product-owner decision, not resolved here; no hardware test executed.
 
 **Issue:** #11 · **PR:** #12 (updated in place; still open, not self-merged)
+
+**Correction to the entry above (appended 2026-09-15, after the second independent review of PR #12 —
+this replaces a specific interpretation; earlier entries are left intact as history).**
+
+**What the previous interpretation got wrong.** I had written that the deployed Android TV 8-bit
+alpha-prefix check is "a cheap client-side sanity check, not the security mechanism", that "the
+security property derives from … not from the prefix width", and that the full 32-byte alpha is the
+security mechanism. **That was backwards on the part that matters for first-use MITM.** The reviewer
+was right and I verified it against the pinned sources rather than just accepting it.
+
+Walking a terminating active MITM through the protocol makes the error concrete. With two
+terminated legs the phone computes `alpha_phone = H(K_C, K_M1, N)` and the TV computes
+`alpha_TV = H(K_M2, K_S, N)`. The *only* thing that can reveal that the phone's observed key
+material differs from the TV's is the alpha prefix, which reaches the phone **through the user**,
+not through the network. So the prefix **is** the out-of-band authenticator and its width **is**
+security-critical. The full 32-byte alpha is sent in-band over the channel whose integrity is in
+question; all its inputs except the nonce are public certificates; and once the attacker clears the
+prefix gate and observes one alpha, the 16-bit nonce falls to a 2^16 offline search (milliseconds),
+after which he computes each leg's alpha independently and both verifications pass.
+
+**Corrected evidence.** Deployed gamma = 8-bit alpha prefix ‖ 16-bit nonce
+[VERIFIED — deployed client]. AOSP `getGamma()` = alpha-prefix ‖ nonce with the prefix
+`nonce.length` bytes wide [VERIFIED — protocol/reference, blob `81095fd`] — i.e. the structure
+matches but deployed carries 8 bits where that formula would give 16. AOSP `extractNonce()`
+rejects odd-length gamma, so the deployed 3-byte gamma is not wire-compatible with that reference
+build. AOSP's own symbol/byte arithmetic (`symbolLength/2` then `/symbolsPerByte()`) is internally
+inconsistent and is quoted, not relied on. Net result: **8 bits of out-of-band authentication per
+pairing attempt**; each retry gives an independent 1/256, so ~10^2 attempts to expected success if
+unthrottled.
+
+**Why the classification changed.** Because digest length and out-of-band entropy are different
+quantities. "The server verifies a 256-bit alpha" is true and was never in doubt; it does **not**
+imply 256 bits of first-use authentication. Conflating them would have let a future architecture or
+product decision read Android TV as cryptographically strong at first use. It is a **bounded
+residual risk** — materially stronger than Samsung (no user-transferred code at all), not
+fundamentally unsafe, and not strong enough to meet PRODUCT.md's bar on its own.
+
+**New unresolved question.** Practical attackability now hinges on controls no source can answer:
+attempts per displayed code, whether failure rotates the code, retry delay, rate limiting,
+lockout/backoff persistence, code lifetime, and whether a LAN peer can start pairing unattended.
+Added hardware tests **ATV-21 … ATV-28** for exactly these, all NOT EXECUTED.
+
+**Also fixed this round.** ATV-17d now runs the baseline **and** the corrupted-Secret test on ATV-B,
+because a clean baseline on a second device proves harness portability, not server verification;
+results are explicitly per-device/per-firmware and must not be generalised. Samsung §1.4 was
+reconciled with §1.7 — the reference client *presents* an opaque token [VERIFIED — client], bearer
+semantics are [INFERRED], and the TV's server-side association rule is [UNRESOLVED]/[HARDWARE-required];
+it is no longer stated as VERIFIED that simple possession authenticates the client to every target
+Samsung TV. The Samsung first-use finding is unchanged.
+
+**Unchanged:** ADR-0005 status and decision (untouched); `config/project.env`; every PRODUCT.md and
+DOMAIN.md requirement; the Samsung first-use conflict as an open product-owner decision. No hardware
+test executed. No interception performed.
+
+**Lesson to carry forward.** When a protocol has both an out-of-band value and an in-band digest,
+ask separately: *what does each authenticate, over which channel, against which adversary?* An
+in-band digest sent over the untrusted channel cannot authenticate the endpoints of that channel.
+
+**Issue:** #11 · **PR:** #12 (body rewritten to current state; still open, not self-merged)

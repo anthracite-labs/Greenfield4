@@ -118,6 +118,12 @@ matrix must be repeatable at a stated version.
 >
 > **Safety.** ATV-17a/17b/17d involve no interception whatsoever. Only ATV-17c and SAM-17 use a
 > proxy, and only on LAB-NET — an isolated network we own.
+>
+> **Per-device scope.** ATV-17b runs on ATV-A and ATV-17d repeats both the baseline and the
+> corrupted-Secret test on ATV-B. A result on one device is a **per-device / per-firmware**
+> result and must never be reported as ecosystem-wide contemporary-firmware conformance.
+> Conformance claims require the corrupted-Secret test to pass on **every** device in the
+> release matrix.
 
 | ID | Test | Expected observation | Pass criterion | Evidence |
 | :-- | :-- | :-- | :-- | :-- |
@@ -140,10 +146,43 @@ matrix must be repeatable at a stated version.
 | ATV-17a | **Harness validation — correct Secret.** Instrumented client pairs normally against ATV-A: records TLS peer cert fingerprint, local `checkGamma` outcome, the exact Secret bytes sent, and the TV's response. Sends the **correct** alpha. | SecretAck received. | **PASS only if** SecretAck is received **and** the log shows the correct alpha was sent. This proves the harness and the baseline before any fault is injected. If this fails, 17b/17c are void. | Client log: peer fingerprint, local-check result, Secret bytes, response class; TV-observed pairing result |
 | ATV-17b | **Decisive — deliberately mismatched Secret.** Using the same harness, complete the handshake and read gamma from the TV, but **transmit an intentionally corrupted Secret** (e.g. flip one byte of the computed alpha). No proxy, no interception: the client holds its own key and talks directly to the TV. | Unknown — this is the decisive observation. | **Record the TV's response class, do not pre-label it.** <br>• TV returns an error / closes without SecretAck → **server-side secret verification CONFIRMED on this firmware.** <br>• TV returns SecretAck → **server-side verification ABSENT on this firmware — critical finding, stop and escalate.** <br>Do **not** interpret any other outcome as confirmation. | Exact Secret bytes sent; TV response bytes/state; whether SecretAck observed; firmware build |
 | ATV-17c | **Substituted certificate during pairing (terminating proxy, owned lab LAN only).** Proxy terminates 6467 with its own cert; complete the code flow. | Unknown. | **Classify the failure point — never infer server verification from a generic failure.** Explicitly distinguish: (1) TLS/mTLS handshake failure; (2) client-side gamma/check-byte rejection **before** Secret transmission; (3) Secret actually sent; (4) TV rejection after receiving a mismatched Secret; (5) SecretAck / pairing success. Only outcome (4) evidences server-side verification. | Proxy cert fingerprint; client log showing whether Secret was sent; the classified rejection point |
-| ATV-17d | **Instrumented clean pairing (baseline capture).** Repeat 17a on **ATV-B** (different vendor/OS build). | Same as 17a. | Confirms the instrumentation is portable across device generations before 17b is relied on as an ecosystem result. | Same artefacts as 17a, per device |
+| ATV-17d | **Second device generation — baseline *then* corrupted Secret.** Repeat **ATV-17a** on **ATV-B** (different vendor / OS build), then repeat **ATV-17b** on **ATV-B**. | 17a: SecretAck. 17b: rejected (error / no SecretAck) if ATV-B enforces server verification. | **Per-device result, recorded separately from ATV-A.** 17a must pass or 17b on ATV-B is void. 17b on ATV-B: error/no-SecretAck → server verification confirmed **on ATV-B**; SecretAck → absent **on ATV-B**, escalate. **A clean baseline alone proves only harness portability, NOT server verification.** | Same artefacts as 17a/17b, tagged per device and per firmware build |
 | ATV-18 | **Substituted certificate on reconnect (MITM).** Proxy terminates 6466 with its own cert after a successful pairing. | With pinning: rejected. | **Must fail closed.** Without pinning, record that it is accepted — which is the verified weakness in the reference posture. | Proxy cert fingerprint; client behaviour |
 | ATV-19 | **Wrong code.** Enter an incorrect 6-symbol code during pairing. | Pairing rejected; no credential issued. | Pairing fails; client surfaces an error and does not fall back to an insecure path. | Error surfaced |
 | ATV-20 | **Independent second phone.** Pair PHONE-2 to the same TV without touching PHONE-1. | Both work independently; PHONE-1's credentials unaffected. | Both control the TV; no credential sharing between phones. | Two client-cert fingerprints; both functional |
+
+---
+
+## Pairing-attempt controls (bounding practical first-use attackability)
+
+**Why this section exists.** The Android TV first-use assessment in
+[`2026-09-14-security-trust-model.md`](2026-09-14-security-trust-model.md) §2.7.6 concludes that,
+against a terminating active MITM, the out-of-band binding is **8 bits per attempt** — an attacker
+clears the alpha-prefix gate with probability ~1/256 per attempt and then recovers the 16-bit nonce
+offline in milliseconds. Whether that is practically exploitable therefore depends **almost entirely
+on how many attempts an attacker gets**. Those controls are invisible to every source read in this
+research, so they must be measured on hardware.
+
+**No expected protections are invented here.** Every row records what the device *actually* does;
+several rows are deliberately pass/fail-free because the safe answer is not known in advance. All
+are **NOT EXECUTED**.
+
+| ID | Observation | Pass/fail | Evidence |
+| :-- | :-- | :-- | :-- |
+| ATV-21 | **Attempts allowed per displayed code.** Submit an incorrect code repeatedly against one displayed gamma; count attempts before the TV stops accepting input or rotates the code. | **No pass/fail — record the number.** It directly sets the attacker's success probability per displayed code. | Attempt count; whether code rotated; TV UI state |
+| ATV-22 | **Does a failed attempt invalidate or rotate the displayed code?** Submit one wrong code, then observe whether the same gamma remains displayed and whether the TV generates a new nonce. | **No pass/fail — record behaviour.** Rotation on failure materially reduces per-code attempts. | Gamma before/after; nonce before/after (from instrumented client); TV UI |
+| ATV-23 | **Retry delay after a failed attempt.** Measure the delay imposed before another code may be submitted, and whether it grows. | **No pass/fail — record the delay and any growth pattern.** | Timestamps; measured delays |
+| ATV-24 | **Rate limiting on repeated pairing sessions.** Start many pairing sessions in succession and measure whether the TV throttles or refuses them. | **No pass/fail — record the observed limit.** | Session start times; accept/refuse outcomes |
+| ATV-25 | **Lockout / backoff after N failures.** Continue failing until the TV refuses, then observe the lockout duration and whether it persists across TV standby/wake and reboot. | **No pass/fail — record threshold, duration, and persistence.** | Failure count to lockout; duration; persistence across power states |
+| ATV-26 | **Can a pairing session be initiated remotely without fresh user action?** Determine whether an unauthenticated LAN peer can cause the TV to display a new code at will. | **PASS (for security) only if** a new code cannot be produced without on-device user action. Otherwise record the exposure — this determines whether an attacker can farm attempts unattended. | Whether a code appears without user action; captured session initiation |
+| ATV-27 | **Is user approval required to begin pairing each time?** Observe what the user must do on the TV to start a pairing session. | **No pass/fail — record the required action.** | Description/screenshot of required on-TV action |
+| ATV-28 | **Code lifetime.** Measure how long a displayed gamma remains valid, and whether it expires on its own. | **No pass/fail — record the lifetime.** | Display time to expiry; TV UI state |
+
+**Combining the result.** Practical first-use attackability is bounded by the product of: attempts
+per code (ATV-21/22), delay and rate limiting (ATV-23/24), lockout threshold and persistence
+(ATV-25), and whether attempts can be generated unattended (ATV-26/27). Record each on **ATV-A and
+ATV-B separately** — throttling behaviour is per-firmware and must not be generalised from one
+device.
 
 ---
 
