@@ -42,7 +42,7 @@ invariants.
 | L2 IR data | Flipper-IRDB as CC0 seed | **HARVEST → ADOPT AS PROVENANCE-CONSTRAINED CANDIDATE** | Current repo is CC0-1.0, but its own README says commits before `2319685` are not covered. A V1 seed may use only files whose relevant content is demonstrably covered by the post-cutover CC0 policy (or separately cleared). Reject the supplied “whole corpus, no licensing risk ever” claim. |
 | L2 IR data | LIRC / IRPLUS import | **HARVEST format; REJECT LIRC corpus as shipping source** | Importing a user-supplied LIRC/IRPLUS file is an interoperability feature; bundling the LIRC remote database remains unlicensed on current primary evidence. Keep those two questions separate. |
 | L2 IR data | USB learn + raw timing | **HARVEST → REJECT V1 hardware dependency** | Preserve file/learning concepts for later; external learner hardware is outside V1. |
-| L3 IR codecs | IRremoteESP8266 timing/protocol knowledge | **HARVEST, do not port on supplied license claim** | It is a strong protocol/test-vector reference, but the supplied matrix incorrectly calls it Apache-2.0. GitHub identifies current `IRremoteESP8266` as **LGPL-2.1**. Any later implementation must review reuse boundaries instead of treating it as Apache code. |
+| L3 IR codecs | IRremoteESP8266 timing/protocol knowledge | **HARVEST, do not port on supplied license claim** | It is a strong protocol/test-vector reference, but the supplied matrix incorrectly calls it Apache-2.0. GitHub identifies `IRremoteESP8266` @ `1e2f0f3ef0a93cbf2a8ddb2e95130f8f4c584b3f` as **LGPL-2.1**. Any later implementation must review reuse boundaries instead of treating it as Apache code. |
 | L3 IR codecs | Pronto/raw timing primitives | **HARVEST** | Useful interchange/escape-hatch concept; implementation belongs in architecture/implementation, not discovery. |
 | L4 discovery | SSDP, Android NSD/mDNS, on-demand discovery | **HARVEST → ADOPT concept** | Android upstream confirms `NsdManager` is DNS-SD/mDNS. Exact manifest permissions are not frozen: Android 17/API 37 introduces `ACCESS_LOCAL_NETWORK` and service-scoped picker flows. Reject the uploaded pack's fixed permission recipe as a timeless architecture decision. |
 | L4 discovery | Wake-on-LAN | **HARVEST → ADOPT where ecosystem/device proves support** | Already consistent with PRODUCT.md safe wake behavior. MAC/device metadata must never become a substitute for cryptographic identity. |
@@ -220,8 +220,9 @@ therefore remains rejected as a shipping corpus.
 
 ### IR protocol reference correction
 
-The supplied pack calls `crankyoldgit/IRremoteESP8266` an Apache-2.0 reference. Current GitHub
-repository metadata identifies it as **LGPL-2.1**, with `LICENSE.txt` at the root. Harvest its
+The supplied pack calls `crankyoldgit/IRremoteESP8266` an Apache-2.0 reference. GitHub repository
+metadata and root `LICENSE.txt` at pinned commit `1e2f0f3ef0a93cbf2a8ddb2e95130f8f4c584b3f`
+identify it as **LGPL-2.1**. Harvest its
 protocol coverage, behavior and test-vector ideas; do not plan a code port based on the incorrect
 Apache claim.
 
@@ -335,8 +336,8 @@ The remaining work is evidence that OSS cannot substitute for:
 | `SebghatYusuf/android_remote` | `130badada23d0332fe6aa8d44cec21e1c3f44801` | mobile secure client-key storage precedent; trust-all server anti-pattern |
 | `Lucaslhm/Flipper-IRDB` | `d126fb1b6f1e114c52b4a8c19839ea65e3a9c24d` | CC0 policy + pre-`2319685` exclusion |
 | `iodn/android-ir-blaster` | `3546eb19e71f002d0471515f05dafe47c4061026` | user import / external-learning interoperability patterns |
-| `crankyoldgit/IRremoteESP8266` | current `master`, metadata checked 2026-09-15 | protocol coverage; license correction to LGPL-2.1 |
-| `probonopd/lirc-remotes` | current primary README/metadata | LIRC corpus provenance gap |
+| `crankyoldgit/IRremoteESP8266` | `1e2f0f3ef0a93cbf2a8ddb2e95130f8f4c584b3f` | protocol coverage; license correction to LGPL-2.1 |
+| `probonopd/lirc-remotes` | `e4a758048908b7e1a571dc2a89c409a33398f2f6` (`xml`) | LIRC corpus provenance gap |
 
 ## Authoritative upstream sources
 
