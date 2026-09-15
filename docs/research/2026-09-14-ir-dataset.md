@@ -101,3 +101,44 @@ Per PRODUCT.md power/failure and DOMAIN.md:
 - LIRC remotes mirror README [VERIFIED fetch_page raw.githubusercontent.com/probonopd/lirc-remotes/master/README.md], license null [VERIFIED gh api]
 - LIRC software license GPL-2.0-or-later example [VERIFIED web_search lirc.org/html/lirc-config-tool.html]
 - Previous secondary source that gave incorrect CC0 claim: infishark blog [SECONDARY ESTIMATE]
+
+
+---
+
+## 2026-09-15 second-pass reconciliation
+
+This document's earlier IRDB/LIRC licensing findings remain historically correct, but the preferred
+V1 source strategy is superseded by
+`docs/research/2026-09-15-ir-dataset-second-pass.md`.
+
+New verified findings:
+
+- `flipperdevices/IRDB@f7b15366` has 3,051 current TV files, but it is **not one clean MIT
+  provenance bucket**. The 2024-07-08 `add mi_remote_database` commit already contained 2,808 TV
+  paths. Representative original imported files explicitly identify
+  `ysard/mi_remote_database` and state `AGPL-3.0 license, Copyright (C) 2021-2023 Ysard`.
+  Commit `2e1b88ce` later converted many of those raw signals to parsed protocol/address/command
+  form and removed the provenance/license comment from the file body. Greenfield therefore does
+  not blanket-adopt the official corpus merely because its top-level repository license is MIT.
+- The official Flipper tree has 245 current TV paths that were not present at the Mi Remote bulk
+  import, spanning 66 brands (including Samsung 43, LG 28, Sony 20, Panasonic 15, Philips 15,
+  Vizio 11 and Hisense 8). These are **per-file adoption candidates**, not automatically approved:
+  retain and inspect the introducing commit/source before shipping a profile.
+- `Lucaslhm/Flipper-IRDB@d126fb1b` is available through GitHub's file API and contains a CC0-1.0
+  license plus the explicit README rule that **commits prior to `2319685` are not covered**.
+  A conservative tree comparison finds only 143 IR paths first introduced after that boundary,
+  including 20 TV paths (2 Samsung, no LG). It is useful clean contribution material but not a
+  complete V1 database.
+- `probonopd/irdb` remains legally understandable but is now **DEFERRED** rather than the
+  preferred conditional source. Its notification/notice/up-to-three-copy obligations need only be
+  considered if Greenfield encounters a concrete supported-device gap that the provenance-clean
+  manifest cannot fill.
+- LIRC remains rejected for V1 shipping while its data/config license is unresolved.
+
+**Current V1 rule:** ship a small provenance-clean profile manifest. Every profile records exact
+source repository, source commit/path, applicable license/provenance class, normalized IR payload,
+and hardware/user-verification state. Harvest mature OSS mechanics; do not import unclear historical
+corpora wholesale.
+
+This closes the broad IR-dataset research question. Remaining work is bounded per selected profile
+and hardware verification.
